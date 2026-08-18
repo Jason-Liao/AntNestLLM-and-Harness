@@ -27,9 +27,11 @@ LOG = Path("/workspace/antnest/artifacts/chat_log.md")
 TRAJ = Path("/workspace/antnest/artifacts/trajs.jsonl")
 
 # 任务型意图词（命中任意即走 Crew；评测集措辞刻意不同，防过拟合指标污染路由）
+# M6-4：新增检索类动词（检索/搜/查找/找），覆盖 grep / find 工具任务
 TASK_HINTS = ("列出", "统计", "写", "保存", "读取", "查看", "删除",
               "list", "count", "write", "read", "报告", "清单", "多少",
-              "看看", "列一下", "都有什么", "念念", "到此为止", "收工")
+              "看看", "列一下", "都有什么", "念念", "到此为止", "收工",
+              "检索", "搜", "查找", "找")
 
 
 def is_task(msg: str) -> bool:

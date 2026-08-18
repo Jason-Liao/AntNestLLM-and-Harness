@@ -24,7 +24,7 @@ from .sft import U, A, greedy_answer
 ART = Path(__file__).resolve().parent.parent / "artifacts"
 EVALSET = Path(__file__).resolve().parent.parent / "evals" / "evalset.json"
 
-LEGAL_TOOLS = {"list_dir", "shell", "write_file", "read_file"}
+LEGAL_TOOLS = {"list_dir", "shell", "write_file", "read_file", "grep", "find"}
 # 通过阈值：L1+L2+L3=0.7（格式对 + 类型对 + 选对工具）
 PASS_BAR = 0.7
 

@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Agent 25 + Agent 20：在线自我进化（M5-4，"使用即训练"自动化）。
+"""Agent 25 + Agent 20 + Agent 8：在线自我进化（M6 版，"使用即训练"自动化）。
 
-闭环：新轨迹检测 → SFT 增量续训（含轨迹回流）→ 独立评测 → 择优晋升。
+闭环：新轨迹检测 → SFT 增量续训（含轨迹回流）→ 独立评测 → 回归门禁 → 择优晋升。
 每次进化追加一行到 artifacts/evolve_log.jsonl，形成可审计的进化史。
+
+M6-5 进化安全：晋升前过回归门禁——action_pass / qa_hit / multi_avg /
+overall 任一关键指标相对跌幅超过 10% 即拒绝晋升（防"整体微涨、单项塌方"
+的隐性退化），门禁结果与拒绝明细写入进化日志。
 
 用法：
   python -m antnest_llm.evolve                 # 检测新轨迹并进化（无新轨迹则跳过）
@@ -16,9 +20,29 @@ import json
 import time
 from pathlib import Path
 
+
 ART = Path(__file__).resolve().parent.parent / "artifacts"
 TRAJ = ART / "trajs.jsonl"
 LOG = ART / "evolve_log.jsonl"
+
+# M6-5：回归门禁盯防的关键指标（None 指标跳过，兼容老产物）
+REGRESSION_KEYS = ("action_pass", "qa_hit", "multi_avg", "overall")
+
+
+def regression_gate(old_r: dict, new_r: dict, max_drop: float = 0.10):
+    """进化安全门禁：任一关键指标相对跌幅 > max_drop 即拒绝晋升。
+
+    只拦下跌幅（单项上涨不限）；overall 持平/上涨但某单项塌方会被拦下，
+    防"综合分微涨掩盖能力回退"的隐性退化。返回 (是否通过, 拒绝明细)。
+    """
+    fails = []
+    for k in REGRESSION_KEYS:
+        o, n = old_r.get(k), new_r.get(k)
+        if o is None or n is None or o <= 0:
+            continue
+        if n < o * (1 - max_drop):
+            fails.append(f"{k} {o}→{n}")
+    return (not fails), fails
 
 
 def read_log() -> list:
@@ -91,15 +115,19 @@ def run_evolve(force=False, sft_steps=60) -> dict:
     if r.returncode != 0:
         return {"action": "fail", "stage": "sft", "error": r.stderr[-400:]}
 
-    # 独立评测择优：新产物 vs 基座
+    # 独立评测择优：新产物 vs 基座（M6-5：晋升前过回归门禁）
     from .eval import evaluate
     old_r = evaluate(base, verbose=False)
     new_r = evaluate(out, verbose=False)
-    better = new_r["overall"] >= old_r["overall"]
+    gate_ok, gate_fails = regression_gate(old_r, new_r)
+    better = gate_ok and new_r["overall"] >= old_r["overall"]
     rec = {
         "action": "evolve", "gen": gen, "base": base, "out": out,
         "n_new_trajs": n_new, "promoted": better,
+        "gate": gate_ok, "gate_fails": gate_fails,
         "old_overall": old_r["overall"], "new_overall": new_r["overall"],
+        "old_metrics": {k: old_r.get(k) for k in REGRESSION_KEYS},
+        "new_metrics": {k: new_r.get(k) for k in REGRESSION_KEYS},
         "total_trajs": last_seen + n_new,
         "seconds": round(time.time() - t0, 1), "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -131,9 +159,10 @@ def main():
         print(f"[失败] {rec['stage']}: {rec['error']}")
     else:
         flag = "✓ 晋升" if rec["promoted"] else "✗ 保留原模型"
+        gate = "门禁通过" if rec.get("gate") else f"门禁拒绝: {rec.get('gate_fails')}"
         print(f"[gen{rec['gen']}] {rec['base']} → {rec['out']} | "
               f"overall {rec['old_overall']} → {rec['new_overall']} | {flag} | "
-              f"+{rec['n_new_trajs']} 轨迹 | {rec['seconds']}s")
+              f"{gate} | +{rec['n_new_trajs']} 轨迹 | {rec['seconds']}s")
 
 
 if __name__ == "__main__":

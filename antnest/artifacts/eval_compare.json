@@ -31,5 +31,27 @@
   "multi_pass": 0.0,
   "overall": 0.4583,
   "n_tasks": 40
+ },
+ {
+  "ckpt": "sft8",
+  "action_pass": 0.559,
+  "pass@3": 0.344,
+  "qa_hit": 0.167,
+  "self_consist": 0.575,
+  "multi_avg": 0.438,
+  "multi_pass": 0.0,
+  "overall": 0.452,
+  "n_tasks": 48
+ },
+ {
+  "ckpt": "grpo8",
+  "action_pass": 0.566,
+  "pass@3": 0.406,
+  "qa_hit": 0.083,
+  "self_consist": 0.6,
+  "multi_avg": 0.579,
+  "multi_pass": 0.0,
+  "overall": 0.434,
+  "n_tasks": 48
  }
 ]

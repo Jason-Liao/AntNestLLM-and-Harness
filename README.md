@@ -12,7 +12,7 @@
 2. **32 Agent 一一映射**：`antnest_team/antnest_agents.py` 把 32 个职位定义为 32 个 CrewAI Agent（角色/目标/背景故事均取自 JD 原文），`antnest_tasks.py` 编排 33 个任务形成产品开发流水线，`main.py` 是团队入口。
 3. **"蚁巢用自己铸造自己"**：团队首先造出最小可用的 LLM 和 Harness，随后每一轮迭代都把**团队自己的交付物、产品源码、工具调用轨迹**回灌为训练语料——模型越用越强，外壳越跑越稳，形成数据自增长闭环。
 
-四个里程碑（每个冲刺报告见 `antnest_team/outputs/`）：
+六个里程碑（每个冲刺报告见 `antnest_team/outputs/`）：
 
 | 里程碑 | 主题 | 关键产出 |
 |---|---|---|
@@ -20,6 +20,8 @@
 | M2 | 数据与分词升级 | 语料清洗器、BPE 分词器、v3 预训练 + SFT、本地模型对话模式 |
 | M3 | 强化学习闭环 | GRPO（评测通过率为奖励）、评测与训练数据分离、v4 模型放大到 7.7M、ChatCrew 对话×多智能体 |
 | M4 | 过程奖励与对齐税 | 五级 PRM（含沙箱真实执行）、SFT 锚定批、奖励课程、轨迹回流、评测扩容 36 任务 + pass@k |
+| M5 | 工具选择攻坚 | 动作示例×10 + 动作空间对比学习（工具选择 9×）、多步链式评测、v5 放大 23.4M、在线自我进化 evolve.py |
+| M6 | 多轮上下文与安全 | (任务,历史,动作) 三元组 SFT、α 动态调度（对齐税再平衡）、语料 v5 + BPE 5000、grep/find 工具扩展、进化回归门禁 |
 
 ## 二、仓库结构
 
@@ -29,29 +31,30 @@
 │   ├── antnest_agents.py       #   32 个 Agent 定义（与职位一一对应）
 │   ├── antnest_tasks.py        #   33 个任务编排
 │   ├── main.py                 #   团队入口（结构校验/任务清单/运行）
-│   └── outputs/                #   团队交付物（33~37 号：方案、周报、冲刺报告）
+│   └── outputs/                #   团队交付物（33~40 号：方案、周报、冲刺报告、过程详解）
 └── antnest/                    # 产品本尊
     ├── antnest_llm/            # ── antNest LLM ──
     │   ├── model.py            #   TinyGPT（Decoder-only Transformer）
     │   ├── tokenizer.py        #   字符级 tokenizer（v1）
     │   ├── bpe.py              #   BPE 分词器（M2）
     │   ├── cleaner.py          #   语料清洗（去 .doc 噪声）
-    │   ├── corpus.py           #   语料 v1~v4（v4 含外部合规语料）
+    │   ├── corpus.py           #   语料 v1~v5（v5 含运行数据，评测集刻意不入库）
     │   ├── train.py            #   预训练入口
-    │   ├── sft.py              #   监督微调（含 --traj 轨迹回流）
-    │   ├── grpo.py             #   GRPO RL（PRM + 锚定 + 课程）
-    │   └── eval.py             #   独立评测（严格尺子 + pass@k）
+    │   ├── sft.py              #   监督微调（动作示例 + 多轮三元组 + --traj 轨迹回流）
+    │   ├── grpo.py             #   GRPO RL（PRM + 锚定α调度 + 课程 + 对比学习）
+    │   ├── eval.py             #   独立评测（严格尺子 + pass@k + 多步链式）
+    │   └── evolve.py           #   在线自我进化（含回归门禁）
     ├── antnest_harness/        # ── antNest Harness ──
     │   ├── agent.py            #   NestAgent：Agent Loop（```action JSON 协议）
-    │   ├── tools.py            #   工具层 + DSec 沙箱（路径围栏/命令白名单）
+    │   ├── tools.py            #   工具层 + DSec 沙箱（6 工具：含 grep/find 检索）
     │   ├── memory.py           #   短期/长期记忆
     │   ├── crew.py             #   NestCrew：planner→builder→reviewer
     │   ├── llm.py              #   LLM 抽象层（Mock / OpenAI 兼容 / 本地直连）
     │   ├── chat.py             #   本地模型多轮对话
     │   └── chat_crew.py        #   对话路由×Multi-Agent + 轨迹记录
-    ├── evals/evalset.json      #   独立评测集（24 动作 + 12 QA，与训练物理隔离）
+    ├── evals/evalset.json      #   独立评测集（32 动作 + 4 多步 + 12 QA，与训练物理隔离）
     ├── corpus_extra.md         #   外部合规语料（公有领域典籍 + PSF 文本）
-    ├── tests/                  #   质量门禁（M0/M1/M2/M3/M4 共 45+ 项 pytest）
+    ├── tests/                  #   质量门禁（M0~M6 共 80 项 pytest）
     └── artifacts/              #   训练产物（ckpt 被 .gitignore 排除，指标/配置/词表在库）
 ```
 
@@ -81,7 +84,7 @@ python -m antnest_llm.sft --steps 300 --base_prefix v4 --out_prefix sft6 \
 python -m antnest_llm.grpo --iters 40 --base_prefix sft6 --out_prefix grpo6 \
        --alpha_sft 0.3 --lambda_ctr 0.3
 
-# ④ 独立评测（40 任务：24 动作 + 4 多步链式 + 12 QA；pass@3 + 自一致性）
+# ④ 独立评测（48 任务：32 动作 + 4 多步链式 + 12 QA；pass@3 + 自一致性）
 python -m antnest_llm.eval --ckpt sft6,grpo6 --passk 3
 
 # ⑤ 在线自我进化（新轨迹 → 增量 SFT → 评测择优晋升）
@@ -100,15 +103,15 @@ python -m pytest tests/ -q
 ### antNest LLM：三阶段训练 + 一把独立尺子
 
 - **预训练**：TinyGPT（Decoder-only），warmup+余弦退火，验证集择优保存；语料从 v1（32 JD）滚到 v4（+交付物 +源码 +外部合规语料），"蚁巢用自己铸造自己"。
-- **SFT**：`<|user|>/<|assistant|>` 模板，prompt 区间 -100 掩码；数据 = 职位问答 + 产品知识 + 动作协议示例；`--traj artifacts/trajs.jsonl` 可把 Harness 真实工具调用轨迹回流为训练数据。
-- **RL（GRPO + PRM + 锚定 + 对比学习）**：组采样归一化优势替代 critic；五级过程奖励
+- **SFT**：`<|user|>/<|assistant|>` 模板，prompt 区间 -100 掩码；数据 = 职位问答 + 产品知识 + 动作协议示例 + **(任务, 历史, 动作) 多轮三元组**（上下文格式与多步评测的观察回填逐字一致）；`--traj artifacts/trajs.jsonl` 可把 Harness 真实工具调用轨迹回流为训练数据。
+- **RL（GRPO + PRM + 锚定 + 对比学习 + α 调度）**：组采样归一化优势替代 critic；五级过程奖励
   `L1 格式 0.2 → L2 类型 0.2 → L3 选对工具 0.3 → L4 参数键 0.15 → L5 沙箱真实执行 0.15`；
-  每步混入 SFT 锚定批（`loss = GRPO + α·NLL`，缓解"对齐税"造成的 QA 遗忘）；
+  每步混入 SFT 锚定批（`loss = GRPO + α(t)·NLL`，**α 线性退火 0.5→0.1**：前期重锚定保 QA，后期释放策略空间）；
   奖励课程：L3-L5 前 10 迭代 2 折起步线性升满，解决严格奖励冷启动稀疏问题；
   **动作空间对比学习**：同 prompt 下正例（期望工具）vs 负例（同格式误工具）
   的 pairwise margin 损失（`+λ·L_ctr`），补上"GRPO 组内全错时无梯度"的死角。
-- **评测与训练分离**：`evals/evalset.json` 与训练任务池**措辞不同、语义等价、物理隔离**，`eval.py` 用同一把严格尺子横评所有 checkpoint（动作分 / pass@k / 自一致性 / 多步链式 / QA 命中率，共 40 任务）。
-- **在线自我进化**：`evolve.py` 一键闭环——新轨迹检测 → 增量 SFT → 独立评测 → 择优晋升 → 追加 `evolve_log.jsonl` 进化史（首次实证 evo1：overall 0.247 → 0.517）。
+- **评测与训练分离**：`evals/evalset.json` 与训练任务池**措辞不同、语义等价、物理隔离**，`eval.py` 用同一把严格尺子横评所有 checkpoint（动作分 / pass@k / 自一致性 / 多步链式 / QA 命中率，共 48 任务）。
+- **在线自我进化**：`evolve.py` 一键闭环——新轨迹检测 → 增量 SFT → 独立评测 → **回归门禁**（任一关键指标跌幅 >10% 拒绝晋升）→ 择优晋升 → 追加 `evolve_log.jsonl` 进化史（首次实证 evo1：overall 0.247 → 0.517）。
 
 ### antNest Harness：可插拔 LLM 的智能体外壳
 
@@ -120,23 +123,27 @@ python -m pytest tests/ -q
 
 ## 六、已验证的演进结论
 
-独立评测集（40 任务，与训练隔离）上的里程碑对比（详表见 `antnest/artifacts/eval_compare.json`）：
+独立评测集（与训练物理隔离）上的里程碑对比（详表见 `antnest/artifacts/eval_compare.json`；M5 行 40 任务、M6 行 48 任务口径）：
 
 | 模型 | 阶段 | 动作分 | pass@3 | QA | 多步 | 综合 | 结论 |
 |---|---|---|---|---|---|---|---|
 | sft4 | SFT(M3) | 0.000 | 0.000 | 0.167 | – | 0.056 | SFT 对训练措辞过拟合，OOD 不会动作 |
 | grpo4 | +GRPO(M3) | 0.300 | 0.000 | 0.083 | – | 0.228 | RL 学会动作，但 QA 遗忘（对齐税） |
 | grpo5 | +PRM+锚定(M4) | 0.287 | 0.000 | 0.167 | 0.300 | 0.247 | 锚定止血 QA；课程奖励修复冷启动 |
-| **sft6** | +动作示例×10(M5) | **0.713** | **0.583** | 0.167 | 0.200 | **0.531** | 数据扩容是第一生产力 |
-| grpo6 | +对比学习(M5) | 0.646 | 0.542 | 0.083 | **0.350** | 0.458 | RL 增益集中在过程能力（多步） |
-| sft7 | 23M 大模型(M5) | 0.525 | 0.333 | 0.125 | **0.658** | 0.392 | 规模换深度：多步 3.3× |
+| **sft6** | +动作示例×10(M5*) | **0.713** | **0.583** | 0.167 | 0.200 | **0.531** | 数据扩容是第一生产力 |
+| grpo6 | +对比学习(M5*) | 0.646 | 0.542 | 0.083 | **0.350** | 0.458 | RL 增益集中在过程能力（多步） |
+| sft7 | 23M 大模型(M5*) | 0.525 | 0.333 | 0.125 | **0.658** | 0.392 | 规模换深度：多步 3.3× |
+| **sft8** | +多轮三元组/v6(M6) | 0.559 | 0.344 | 0.167 | 0.438 | **0.452** | 工具扩容不打折：新工具任务零样本迁移 |
+| grpo8 | +α 动态调度(M6) | **0.566** | **0.406** | 0.083 | **0.579** | 0.434 | α 释放策略空间：多步 +32%，QA 税待 M7 根治 |
 
-质量门禁：`pytest tests/` 55 项全绿（M0-M5），坏味道零容忍——每个 badcase 都有"定位→修复→回归测试"闭环记录（见冲刺报告 21/28/34/37/38 号）。
+\* M5 行为 40 任务口径，M6 行为 48 任务口径（评测集新增 grep/find 8 条），横比见 40 号报告说明。
+
+质量门禁：`pytest tests/` 80 项全绿（M0-M6），坏味道零容忍——每个 badcase 都有"定位→修复→回归测试"闭环记录（见冲刺报告 21/28/34/37/38/40 号）。
 
 ## 七、常见问题
 
 - **`artifacts/*.pt` 在哪？** 模型权重超 GitHub 单文件限制被 `.gitignore` 排除；所有 `*_model_config.json / *_vocab.json / *_metrics.json` 均在库，按"快速开始"命令可完整复现每个 checkpoint。
-- **想要更大模型？** 本库已含 23.4M 版（v5：`--n_embd 384 --n_head 6 --n_layer 12`，权重被 .gitignore 排除，按快速开始命令复现）；多步任务能力 3.3× 于 7.7M 版。
+- **想要更大模型？** 本库已含 25.2M 版（v6：`--corpus v5 --tokenizer bpe --bpe_vocab 5000 --n_embd 384 --n_head 6 --n_layer 12 --steps 300 --prefix v6`，语料 v5 含运行数据回灌，权重被 .gitignore 排除）；23.4M 的 v5 版见快速开始命令。
 - **32 个智能体怎么协作的？** 见 `antnest_team/outputs/39_32智能体开发过程详解.md`——32 份 JD → 32 个 CrewAI Agent → 33 任务 DAG → 39 份交付物 → 代码落地的全记录。
 - **接真实大模型？** 设置 `ANTNEST_LLM_API_BASE/_KEY/_MODEL` 后 Harness 全链路（Agent Loop / Crew / 对话路由）自动切换到 `OpenAICompatClient`。
 

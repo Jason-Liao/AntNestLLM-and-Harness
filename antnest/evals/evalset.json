@@ -1,5 +1,5 @@
 {
-  "_说明": "M4 独立评测集（扩容版）：与 grpo.py TASK_POOL 物理隔离、措辞不同、语义等价。expect.tool 为期望工具名（L3 工具选择分）。永不进入训练梯度。",
+  "_说明": "M6 独立评测集（扩容版）：与 grpo.py TASK_POOL / sft.py 训练样本物理隔离、措辞不同、语义等价。expect.tool 为期望工具名（L3 工具选择分）。永不进入训练梯度。M6-4 新增 grep/find 检索任务（动作空间 4→6）。",
   "action_tasks": [
     {"prompt": "帮我看看 extracted 文件夹里都有什么。", "expect": "tool", "tool": "list_dir"},
     {"prompt": "outputs 目录下的文件给我列一下。", "expect": "tool", "tool": "list_dir"},
@@ -22,6 +22,14 @@
     {"prompt": "打开 metrics 文件看看数值。", "expect": "tool", "tool": "read_file"},
     {"prompt": "读取一下最近的冲刺报告。", "expect": "tool", "tool": "read_file"},
     {"prompt": "看看 vocab 里都有哪些词。", "expect": "tool", "tool": "read_file"},
+    {"prompt": "在 README 里检索一下 Harness 这个词。", "expect": "tool", "tool": "grep"},
+    {"prompt": "搜一搜词表文件里有没有这个词条。", "expect": "tool", "tool": "grep"},
+    {"prompt": "在文档中查找出现关键词的地方。", "expect": "tool", "tool": "grep"},
+    {"prompt": "帮我搜索笔记里含结论的行。", "expect": "tool", "tool": "grep"},
+    {"prompt": "递归找一下 antnest 下所有 py 文件。", "expect": "tool", "tool": "find"},
+    {"prompt": "帮我找出仓库里的 markdown 文件。", "expect": "tool", "tool": "find"},
+    {"prompt": "查查哪些文件是 json 后缀的。", "expect": "tool", "tool": "find"},
+    {"prompt": "找一下 tests 目录的测试脚本在哪。", "expect": "tool", "tool": "find"},
     {"prompt": "这轮工作到此为止吧。", "expect": "finish", "tool": null},
     {"prompt": "好了，可以收工了。", "expect": "finish", "tool": null},
     {"prompt": "目标达成，就此收工。", "expect": "finish", "tool": null}

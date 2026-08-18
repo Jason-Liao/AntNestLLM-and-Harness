@@ -102,7 +102,8 @@ def test_evalset_expanded():
     eval_prompts = {t["prompt"] for t in es["action_tasks"]}
     assert not (train_prompts & eval_prompts), "评测任务不得与训练任务同措辞"
     tools = {t["tool"] for t in es["action_tasks"] if t["expect"] == "tool"}
-    assert tools == {"list_dir", "shell", "write_file", "read_file"}
+    # M6-4：动作空间扩至 6 工具（+grep/find）
+    assert tools == {"list_dir", "shell", "write_file", "read_file", "grep", "find"}
 
 
 def test_score_action_tool_grade():

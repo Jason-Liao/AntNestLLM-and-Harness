@@ -48,6 +48,29 @@ def load_corpus_v4() -> str:
     return load_corpus_v3() + "\n\n" + extra
 
 
+def load_corpus_v5() -> str:
+    """v4 + 运行数据（M6-3，Agent 3）："使用痕迹"入库。
+
+    团队交付物由 glob 自动纳入最新（38-40 号冲刺报告等全文随跑随进），
+    v5 再把产品运行数据——README、训练指标、进化日志、工具调用轨迹——
+    回灌预训练分布（蚁巢用自己铸造自己的再进一层）。
+    注意：evals/evalset.json 刻意不入库——评测集永不进训练梯度（M3 纪律）。
+    建议搭配 BPE 5000：python -m antnest_llm.train --corpus v5 --bpe_vocab 5000
+    """
+    parts = [load_corpus_v4()]
+    ant = WS / "antnest"
+    readme = _read(WS / "README.md")
+    if readme:
+        parts.append(f"《README》\n{readme}")
+    art = ant / "artifacts"
+    for pat in ("*_metrics.json", "evolve_log.jsonl", "trajs.jsonl"):
+        for f in sorted(art.glob(pat)):
+            t = _read(f)
+            if t:
+                parts.append(f"《{f.name}》\n{t}")
+    return "\n\n".join(parts)
+
+
 def jd_titles() -> list:
     """返回 [(编号, 职位名)]，供 SFT 构造职位问答。"""
     out = []

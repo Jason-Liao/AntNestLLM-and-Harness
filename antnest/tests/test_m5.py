@@ -41,7 +41,8 @@ def test_task_pool_expanded():
     from antnest_llm.grpo import TASK_POOL
     assert len(TASK_POOL) >= 20, "GRPO 任务池应扩容到 20+"
     tools = {t for _, (k, t) in TASK_POOL if k == "tool"}
-    assert len(tools) == 4, "四类工具均需在池中"
+    # M6-4：动作空间扩至 6 工具（+grep/find）
+    assert len(tools) == 6, "六类工具均需在池中"
 
 
 def test_contrast_pairs_format():

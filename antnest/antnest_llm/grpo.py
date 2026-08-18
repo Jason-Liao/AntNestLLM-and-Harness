@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Agent 18/19 + Agent 25：antNest LLM RL 环境（GRPO，M4 版）。
+"""Agent 18/19 + Agent 25：antNest LLM RL 环境（GRPO，M6 版）。
 
 M3 基线：GRPO（组相对策略优化）——组采样归一化优势 + ratio 裁剪 + KL 锚定。
 M4 升级两项：
@@ -9,6 +9,11 @@ M4 升级两项：
      其中 L5 在 DSec 沙箱内真实执行候选动作，以"结果可用"给分（真过程奖励）。
   ② 对齐税优化（Agent 25，REINFORCE++ 风格）：每次迭代混入 SFT 锚定批次，
      total = GRPO 损失 + α·NLL(锚定样本)，缓解 RL 后 QA 能力遗忘。
+M6 升级两项：
+  ③ α 动态调度（M6-2 对齐税再平衡）：锚定系数从 α_max 线性退火至 α_min——
+     前期重锚定保 QA 不遗忘，后期释放策略优化空间。
+  ④ 动作空间 4 → 6（M6-4）：新增 grep（内容检索）/ find（名称查找）
+     参数化任务，TASK_POOL 同步扩容。
 
 用法：python -m antnest_llm.grpo --iters 40 --base_prefix sft4 --out_prefix grpo5
 产出：artifacts/{grpo5_ckpt.pt, grpo5_metrics.json, grpo5_model_config.json,
@@ -29,10 +34,11 @@ from .sft import U, A, greedy_answer, build_examples, encode_example
 
 ART = Path(__file__).resolve().parent.parent / "artifacts"
 
-LEGAL_TOOLS = {"list_dir", "shell", "write_file", "read_file"}
+LEGAL_TOOLS = {"list_dir", "shell", "write_file", "read_file", "grep", "find"}
 # 参数键完备性：每个工具必需的 args 键（L4）
 TOOL_ARGS = {"list_dir": {"p"}, "read_file": {"p"},
-             "write_file": {"p", "c"}, "shell": {"cmd"}}
+             "write_file": {"p", "c"}, "shell": {"cmd"},
+             "grep": {"p", "q"}, "find": {"dir", "name"}}
 
 # 任务池：prompt → (期望动作类型, 期望工具名)
 # expect_tool 为 None 表示 finish 类任务
@@ -56,6 +62,15 @@ TASK_POOL = [
     ("看看报告里写了什么。", ("tool", "read_file")),
     ("我想看 README 的内容。", ("tool", "read_file")),
     ("查看模型配置。", ("tool", "read_file")),
+    # M6-4：grep / find 参数化检索任务（动作空间 4 → 6）
+    ("帮我找找 README 里包含 Harness 的行。", ("tool", "grep")),
+    ("在词表里搜一下这个词条。", ("tool", "grep")),
+    ("报告里哪里提到了沙箱？帮我找出来。", ("tool", "grep")),
+    ("在源码文件里查找一下 sandbox。", ("tool", "grep")),
+    ("找出仓库里所有 python 文件。", ("tool", "find")),
+    ("查一下 antnest 下的 md 文件有哪些。", ("tool", "find")),
+    ("帮我找出所有 json 配置文件。", ("tool", "find")),
+    ("找一下 tests 目录里的测试文件。", ("tool", "find")),
     ("任务已完成，请结束。", ("finish", None)),
     ("所有工作已结束。", ("finish", None)),
     ("做完了，收工吧。", ("finish", None)),
@@ -68,7 +83,20 @@ TOOL_DEMO_ARGS = {
     "read_file": {"p": "/workspace/antnest/artifacts/report.md"},
     "write_file": {"p": "/workspace/antnest/artifacts/report.md", "c": "antNest 报告"},
     "shell": {"cmd": "ls /workspace/antnest_team/outputs | wc -l"},
+    "grep": {"p": "/workspace/README.md", "q": "Harness"},
+    "find": {"dir": "/workspace/antnest", "name": "*.py"},
 }
+
+
+# ── M6-2：α 动态调度（对齐税再平衡）────────────────────────
+def alpha_at(it: int, total: int, a_min: float = 0.1, a_max: float = 0.5) -> float:
+    """锚定系数 α 的线性退火调度：iter 1 → α_max（重锚定保 QA），
+    iter total → α_min（释放策略优化空间）。total≤1 时恒为 α_max。
+    """
+    if total <= 1:
+        return a_max
+    t = min(1.0, max(0.0, (it - 1) / (total - 1)))
+    return a_max - (a_max - a_min) * t
 
 
 def _sandbox():
@@ -293,7 +321,10 @@ def main():
     ap.add_argument("--group", type=int, default=6, help="组大小 G")
     ap.add_argument("--prompts_per_iter", type=int, default=4)
     ap.add_argument("--anchor_per_iter", type=int, default=3, help="每次迭代锚定样本数")
-    ap.add_argument("--alpha_sft", type=float, default=0.3, help="对齐税系数 α")
+    ap.add_argument("--alpha_sft", type=float, default=0.5,
+                    help="对齐税系数 α 上限（M6-2 动态调度起点）")
+    ap.add_argument("--alpha_min", type=float, default=0.1,
+                    help="对齐税系数 α 下限（调度终点）")
     ap.add_argument("--lambda_ctr", type=float, default=0.3,
                     help="M5-1 动作空间对比学习系数 λ")
     ap.add_argument("--ctr_per_iter", type=int, default=3,
@@ -337,6 +368,8 @@ def main():
         sel = [TASK_POOL[i] for i in torch.randperm(len(TASK_POOL), generator=rng)
                [: args.prompts_per_iter]]
         tot_loss, tot_rew, tot_anchor, tot_ctr, n_g = 0.0, 0.0, 0.0, 0.0, 0
+        # M6-2：α 动态调度（线性退火：前期重锚定保 QA，后期释放策略空间）
+        alpha_t = alpha_at(it, args.iters, args.alpha_min, args.alpha_sft)
         for prompt, expect in sel:
             model.eval()
             group, p_len = sample_group(model, tok, prompt, args.group,
@@ -356,7 +389,7 @@ def main():
             loss_t = torch.stack(g_losses).mean()
             a_nll = sft_anchor_loss(model, tok, anchors, cfg["block_size"])
             if a_nll is not None:
-                loss_t = loss_t + args.alpha_sft * a_nll
+                loss_t = loss_t + alpha_t * a_nll
                 tot_anchor += a_nll.item()
             # M5-1 动作空间对比批次（同 step 联合反传）
             ci = torch.randperm(len(contrast_pool), generator=rng)[: args.ctr_per_iter]
@@ -375,10 +408,11 @@ def main():
         history.append({"iter": it, "loss": round(tot_loss, 4),
                         "reward": round(mean_rew, 4),
                         "anchor_nll": round(mean_anchor, 4),
-                        "ctr_loss": round(mean_ctr, 4)})
+                        "ctr_loss": round(mean_ctr, 4),
+                        "alpha": round(alpha_t, 4)})
         if it % 5 == 0 or it == 1:
             print(f"iter {it:>3} | loss {tot_loss:>7.3f} | PRM通过率 {mean_rew:.3f} | "
-                  f"锚定NLL {mean_anchor:.3f} | 对比loss {mean_ctr:.3f}")
+                  f"锚定NLL {mean_anchor:.3f} | 对比loss {mean_ctr:.3f} | α {alpha_t:.3f}")
         if mean_rew >= best:
             best = mean_rew
             torch.save(model.state_dict(), ART / f"{op}_ckpt.pt")
@@ -387,8 +421,8 @@ def main():
     (ART / f"{op}_model_config.json").write_text(
         (ART / f"{bp}_model_config.json").read_text(encoding="utf-8"), encoding="utf-8")
     (ART / f"{op}_metrics.json").write_text(json.dumps(
-        {"algo": "GRPO+PRM+AnchorSFT+ContrastiveTools", "iters": args.iters,
-         "group": args.group, "alpha_sft": args.alpha_sft,
+        {"algo": "GRPO+PRM+AnchorSFT+ContrastiveTools+AlphaSchedule", "iters": args.iters,
+         "group": args.group, "alpha_sft": args.alpha_sft, "alpha_min": args.alpha_min,
          "lambda_ctr": args.lambda_ctr, "best_reward": round(best, 4),
          "final_reward": history[-1]["reward"],
          "final_anchor_nll": history[-1]["anchor_nll"],

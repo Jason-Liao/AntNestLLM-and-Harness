@@ -47,6 +47,27 @@ class ToolRegistry:
                       {"p": "文件路径", "c": "内容"})
         self.register("shell", "在沙箱内执行白名单 shell 命令",
                       self._shell, {"cmd": "命令行"})
+        # M6-4（Agent 4 检索专长）：参数化检索工具，动作空间 4 → 6
+        self.register("grep", "在文件内容中搜索关键词，返回命中行",
+                      self._grep, {"p": "文件路径", "q": "搜索关键词"})
+        self.register("find", "按名称模式递归查找文件",
+                      self._find, {"dir": "起始目录", "name": "文件名模式，如 *.py"})
+
+    @staticmethod
+    def _grep(p: str, q: str) -> str:
+        """内容检索：沙箱内读文件，返回含关键词的行（上限 50 行）。"""
+        hits = [ln.strip() for ln in _safe_path(p).read_text(
+            encoding="utf-8", errors="ignore").splitlines() if q in ln]
+        return json.dumps(hits[:50], ensure_ascii=False)
+
+    @staticmethod
+    def _find(dir: str, name: str) -> str:
+        """名称检索：fnmatch 模式递归匹配（上限 200 条，惰性截断）。"""
+        import fnmatch
+        root = _safe_path(dir)
+        hits = [str(x.relative_to(SAFE_ROOT)) for x in root.rglob("*")
+                if fnmatch.fnmatch(x.name, name)][:200]
+        return json.dumps(hits, ensure_ascii=False)
 
     @staticmethod
     def _shell(cmd: str) -> str:

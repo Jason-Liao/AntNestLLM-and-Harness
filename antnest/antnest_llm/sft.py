@@ -2,7 +2,10 @@
 """Agent 25（后训练研究员）：antNest LLM SFT（监督微调）。
 
 数据：职位问答（32 条）+ 产品知识问答（来自 33/24/28 号交付物）
-     + 动作格式示例（任务→```action JSON，教模型输出 Harness 动作协议）
+     + 动作格式示例（任务→```action JSON，教模型输出 Harness 动作协议；
+       M6-4 扩至 grep/find 六类工具）
+     + M6-1 多轮上下文样本：(任务, 历史, 动作) 三元组，
+       与 eval.run_multi_step 观察回填格式一致，攻多步全通率
 训练：assistant 区间损失（prompt 部分 -100 掩码），warmup+余弦，择优保存。
 
 用法：python -m antnest_llm.sft --steps 200
@@ -57,7 +60,10 @@ def build_examples() -> list:
 
     # 3) 动作格式（Agent 5 的动作协议 → 训练信号）
     #    M5-1 扩容：4 条 → 40+ 条（每工具 × 多措辞 × 多对象），攻 L3 工具选择
+    #    M6-4 再扩：grep / find 参数化检索工具（动作空间 4 → 6）
     ex += build_action_examples()
+    # 4) M6-1 多轮上下文：(任务, 历史, 动作) 三元组，攻多步全通率
+    ex += build_multiturn_examples()
     return ex
 
 
@@ -68,6 +74,8 @@ TOOL_LEADS = {
     "read_file": ["读取文件：", "我来查看文件内容：", "调用读文件工具："],
     "write_file": ["写入文件：", "我来保存内容：", "调用写文件工具："],
     "shell": ["执行命令统计：", "用 shell 处理：", "调用命令行工具："],
+    "grep": ["执行内容检索：", "我来在文件里搜索：", "调用检索工具："],
+    "find": ["执行文件查找：", "我来按名称找文件：", "调用查找工具："],
 }
 
 
@@ -105,8 +113,8 @@ def build_action_examples() -> list:
         ("write_file", [
             ("把结论写成报告。", {"p": "/workspace/antnest/artifacts/report.md",
                                 "c": "antNest 报告"}),
-            ("把这些材料保存为一份报告。", {"p": "/workspace/antnest/artifacts/report.md",
-                                           "c": "antNest 报告"}),
+            ("把这些材料整理成报告存档。", {"p": "/workspace/antnest/artifacts/report.md",
+                                          "c": "antNest 报告"}),
             ("把结论记入 memory.md。", {"p": "/workspace/antnest/artifacts/memory.md",
                                        "c": "结论已记录"}),
             ("帮我保存这些笔记。", {"p": "/workspace/antnest/artifacts/notes.md",
@@ -131,6 +139,27 @@ def build_action_examples() -> list:
             ("用命令行查看目录占用。", {"cmd": "ls /workspace/antnest/artifacts"}),
             ("echo 一句口号到终端。", {"cmd": "echo antNest 蚁巢计划"}),
         ]),
+        # M6-4：参数化检索工具（动作空间 4 → 6）
+        ("grep", [
+            ("帮我找找 README 里包含 Harness 的行。", {"p": "/workspace/README.md", "q": "Harness"}),
+            ("在词表里搜一下这个词条。", {"p": "/workspace/antnest/artifacts/v4_vocab.json", "q": "蚁巢"}),
+            ("报告里哪里提到了沙箱？帮我找出来。", {"p": "/workspace/antnest/artifacts/report.md", "q": "沙箱"}),
+            ("在源码文件里查找一下 sandbox。", {"p": "/workspace/antnest/antnest_harness/tools.py", "q": "sandbox"}),
+            ("搜一搜笔记里有没有结论两个字。", {"p": "/workspace/antnest/artifacts/notes.md", "q": "结论"}),
+            ("看看 README 里哪些行写了蚁巢。", {"p": "/workspace/README.md", "q": "蚁巢"}),
+            ("在训练指标里找一下 val_loss。", {"p": "/workspace/antnest/artifacts/v4_metrics.json", "q": "val_loss"}),
+            ("帮我检索样本文件里的关键词。", {"p": "/workspace/antnest/artifacts/v4_sample.txt", "q": "antNest"}),
+        ]),
+        ("find", [
+            ("找出仓库里所有 python 文件。", {"dir": "/workspace/antnest", "name": "*.py"}),
+            ("查一下 antnest 下的 md 文件有哪些。", {"dir": "/workspace/antnest", "name": "*.md"}),
+            ("帮我找出所有 json 配置文件。", {"dir": "/workspace/antnest", "name": "*.json"}),
+            ("找一下 tests 目录里的测试文件。", {"dir": "/workspace/antnest/tests", "name": "*.py"}),
+            ("仓库里都有哪些词表文件？", {"dir": "/workspace/antnest/artifacts", "name": "*vocab.json"}),
+            ("看看有没有 txt 样例文件。", {"dir": "/workspace/antnest/artifacts", "name": "*.txt"}),
+            ("递归找一下 evals 下的文件。", {"dir": "/workspace/antnest/evals", "name": "*.json"}),
+            ("帮我定位 markdown 交付物。", {"dir": "/workspace/antnest_team/outputs", "name": "*.md"}),
+        ]),
     ]
     ex = []
     for tool, utts in specs:
@@ -141,6 +170,76 @@ def build_action_examples() -> list:
     for q in ["任务已完成。", "任务已完成，请结束。", "所有工作已结束。", "做完了，收工吧。",
               "以上任务全部完成。", "没有更多要做的了。", "到此结束。", "可以结束了。"]:
         ex.append((q, _act("finish", None, None, "任务结束：")))
+    return ex
+
+
+# ── M6-1：多轮上下文样本（(任务, 历史, 动作) 三元组）────────
+def build_multiturn_examples() -> list:
+    """多步任务的多轮样本：上下文 = 任务 + 已完成步骤的历史摘要，
+    与 eval.run_multi_step 的观察回填格式逐字一致（第N步已完成，使用了
+    X，结果正常。继续下一步。），教模型依据历史选出正确的下一步动作。
+
+    训练任务措辞与评测集 multi_tasks 物理隔离（语义同类、字面不同），
+    多步全通率为 0 的根因即训练分布中从未出现过带历史的上下文。
+    """
+    def _ctx(task: str, step: int, tool: str) -> str:
+        return (f"{task}\n（第{step}步已完成，使用了 {tool}，结果正常。）"
+                f"继续下一步。")
+
+    # (任务, [(步号, 该步使用的工具, 期望的下一动作 (kind, tool, args))])
+    specs = [
+        ("查看一下 extracted 目录里有什么，随后把文件名清单存档。",
+         [(1, "list_dir", ("tool", "write_file",
+                           {"p": "/workspace/antnest/artifacts/list.md", "c": "文件清单"})),
+          (2, "write_file", ("finish", None, None))]),
+        ("先读 README，读完统计它有多少字符。",
+         [(1, "read_file", ("tool", "shell",
+                            {"cmd": "wc -c /workspace/README.md"})),
+          (2, "shell", ("finish", None, None))]),
+        ("看看 artifacts 目录的文件，统计文件个数，并把结果记到笔记里。",
+         [(1, "list_dir", ("tool", "shell",
+                           {"cmd": "ls /workspace/antnest/artifacts | wc -l"})),
+          (2, "shell", ("tool", "write_file",
+                        {"p": "/workspace/antnest/artifacts/notes.md", "c": "统计结果"})),
+          (3, "write_file", ("finish", None, None))]),
+        ("瞄一眼 evals 目录，然后数数 json 文件有几个。",
+         [(1, "list_dir", ("tool", "shell",
+                           {"cmd": "ls /workspace/antnest/evals | wc -l"})),
+          (2, "shell", ("finish", None, None))]),
+        ("查看词表文件的内容，然后统计它的行数。",
+         [(1, "read_file", ("tool", "shell",
+                            {"cmd": "wc -l /workspace/antnest/artifacts/v4_vocab.json"})),
+          (2, "shell", ("finish", None, None))]),
+        ("先看看 extracted 里有什么，再从 README 中检索蚁巢相关的行。",
+         [(1, "list_dir", ("tool", "grep",
+                           {"p": "/workspace/README.md", "q": "蚁巢"})),
+          (2, "grep", ("finish", None, None))]),
+        ("读一下 README，再找出仓库里所有 py 文件。",
+         [(1, "read_file", ("tool", "find",
+                            {"dir": "/workspace/antnest", "name": "*.py"})),
+          (2, "find", ("finish", None, None))]),
+        ("列出 tests 目录内容，把测试文件清单写进文档。",
+         [(1, "list_dir", ("tool", "write_file",
+                           {"p": "/workspace/antnest/artifacts/tests_list.md", "c": "测试清单"})),
+          (2, "write_file", ("finish", None, None))]),
+        ("把训练结论存成报告，然后统计报告字数。",
+         [(1, "write_file", ("tool", "shell",
+                             {"cmd": "wc -c /workspace/antnest/artifacts/report.md"})),
+          (2, "shell", ("finish", None, None))]),
+        ("先检索源码里的沙箱实现，再把结果记录下来。",
+         [(1, "grep", ("tool", "write_file",
+                       {"p": "/workspace/antnest/artifacts/grep_out.md", "c": "检索结果"})),
+          (2, "write_file", ("finish", None, None))]),
+    ]
+    ex = []
+    for task, trans in specs:
+        for j, (step, used, (kind, tool, args)) in enumerate(trans):
+            q = _ctx(task, step, used)
+            if kind == "finish":
+                ex.append((q, _act("finish", None, None, "任务结束：")))
+            else:
+                lead = TOOL_LEADS[tool][j % len(TOOL_LEADS[tool])]
+                ex.append((q, _act("tool", tool, args, lead)))
     return ex
 
 
