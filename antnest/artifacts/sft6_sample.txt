@@ -1,0 +1,1 @@
+<|user|>antNest 的目标是什么？<|assistant|>antNest（蚁巢）模型计划有两个目标：训练出 antNest LLM，并打造 antNest Harness。模型与外壳相互驱动、共同进化。其使命围绕 antNest 蚁巢计划的第 1。其使命围绕 antNest 蚁巢计划的第 1c -ls | wcmd": "。其使命围绕 antNest LLM 训练与 antNest Harness 建设展开，以工程与创新共同推进 AGI 目标。其使命围绕 antNest Harness 建设展开，以工程与创新

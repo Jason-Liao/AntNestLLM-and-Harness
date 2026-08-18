@@ -17,32 +17,32 @@ ART = Path("/workspace/antnest/artifacts")
 GRPO_OK = (ART / "grpo_ckpt.pt").exists()
 
 
-# ── GRPO 奖励函数 ───────────────────────────────────────────────
+# ── GRPO 奖励函数（M4：expect=(类型, 工具名) 元组） ──────────────
 def test_reward_full_score():
-    text = '好的：\n```action\n{"action":"tool","name":"list_dir","args":{"p":"/tmp"}}\n```'
-    assert evaluate_response(text, "tool") == 1.0
+    text = '好的：\n```action\n{"action":"tool","name":"list_dir","args":{"p":"/workspace"}}\n```'
+    assert evaluate_response(text, ("tool", "list_dir")) == 1.0
 
 
 def test_reward_partial():
     fence_only = '```action\n{坏json}\n```'
-    assert 0.0 < evaluate_response(fence_only, "tool") <= 0.5
-    assert evaluate_response("我不明白。", "tool") == 0.0  # 无格式要素
+    assert 0.0 < evaluate_response(fence_only, ("tool", "list_dir")) <= 0.5
+    assert evaluate_response("我不明白。", ("tool", "list_dir")) == 0.0  # 无格式要素
 
 
 def test_reward_shaping():
     # shaping：具备格式要素但无完整围栏 → 非零部分分
-    s = evaluate_response('输出 "action":"tool" 这样', "tool")
-    assert 0.0 < s < 0.3
+    s = evaluate_response('输出 "action":"tool" 这样', ("tool", "list_dir"))
+    assert 0.0 < s < 0.2
 
 
 def test_reward_type_mismatch():
     text = '```action\n{"action":"tool","name":"shell","args":{"cmd":"ls"}}\n```'
-    assert evaluate_response(text, "finish") < 1.0
+    assert evaluate_response(text, ("finish", None)) < 1.0
 
 
 def test_task_pool_integrity():
     assert len(TASK_POOL) >= 8
-    assert all(e in ("tool", "finish") for _, e in TASK_POOL)
+    assert all(e[0] in ("tool", "finish") for _, e in TASK_POOL)
 
 
 # ── 评测与训练分离 ─────────────────────────────────────────────

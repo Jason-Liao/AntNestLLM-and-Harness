@@ -26,6 +26,16 @@
     {"prompt": "好了，可以收工了。", "expect": "finish", "tool": null},
     {"prompt": "目标达成，就此收工。", "expect": "finish", "tool": null}
   ],
+  "multi_tasks": [
+    {"prompt": "先看看 extracted 文件夹里都有什么，然后把看到的文件名保存成清单文件。",
+     "steps": [{"tool": "list_dir"}, {"tool": "write_file"}]},
+    {"prompt": "先读一下报告文件，读完后用命令统计它的字数。",
+     "steps": [{"tool": "read_file"}, {"tool": "shell"}]},
+    {"prompt": "列出 outputs 目录的文件，数一数一共有多少个，最后把数量记入笔记。",
+     "steps": [{"tool": "list_dir"}, {"tool": "shell"}, {"tool": "write_file"}]},
+    {"prompt": "查看一下 tests 目录内容，然后统计测试文件的数量。",
+     "steps": [{"tool": "list_dir"}, {"tool": "shell"}]}
+  ],
   "qa_tasks": [
     {"prompt": "蚁巢计划要做出哪两样东西？", "keys": ["antNest LLM", "Harness"]},
     {"prompt": "Harness 里管工具安全的是哪个机制？", "keys": ["沙箱", "DSec"]},

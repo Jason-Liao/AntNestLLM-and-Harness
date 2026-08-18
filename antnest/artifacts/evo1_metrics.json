@@ -1,0 +1,44 @@
+{
+ "steps": 60,
+ "n_train": 72,
+ "n_val": 8,
+ "best_val_loss": 0.8899,
+ "seconds": 676.7,
+ "history": [
+  {
+   "epoch": 1,
+   "train_loss": 3.0724,
+   "val_loss": 3.3949
+  },
+  {
+   "epoch": 10,
+   "train_loss": 0.4171,
+   "val_loss": 1.1501
+  },
+  {
+   "epoch": 20,
+   "train_loss": 0.0193,
+   "val_loss": 0.8899
+  },
+  {
+   "epoch": 30,
+   "train_loss": 0.0052,
+   "val_loss": 0.9229
+  },
+  {
+   "epoch": 40,
+   "train_loss": 0.0036,
+   "val_loss": 0.9373
+  },
+  {
+   "epoch": 50,
+   "train_loss": 0.003,
+   "val_loss": 0.9441
+  },
+  {
+   "epoch": 60,
+   "train_loss": 0.0029,
+   "val_loss": 0.9468
+  }
+ ]
+}

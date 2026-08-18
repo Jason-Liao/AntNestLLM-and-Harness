@@ -1,26 +1,35 @@
 [
  {
-  "ckpt": "grpo4",
-  "action_pass": 0.3,
-  "pass@1": 0.0,
-  "qa_hit": 0.0833,
-  "overall": 0.2278,
-  "n_tasks": 36
+  "ckpt": "sft6",
+  "action_pass": 0.7125,
+  "pass@3": 0.5833,
+  "qa_hit": 0.1667,
+  "self_consist": 0.675,
+  "multi_avg": 0.2,
+  "multi_pass": 0.0,
+  "overall": 0.5306,
+  "n_tasks": 40
  },
  {
   "ckpt": "grpo5",
   "action_pass": 0.2875,
-  "pass@1": 0.0,
+  "pass@3": 0.0,
   "qa_hit": 0.1667,
+  "self_consist": 1.0,
+  "multi_avg": 0.3,
+  "multi_pass": 0.0,
   "overall": 0.2472,
-  "n_tasks": 36
+  "n_tasks": 40
  },
  {
-  "ckpt": "sft4",
-  "action_pass": 0.0,
-  "pass@1": 0.0,
-  "qa_hit": 0.1667,
-  "overall": 0.0556,
-  "n_tasks": 36
+  "ckpt": "grpo6",
+  "action_pass": 0.6458,
+  "pass@3": 0.5417,
+  "qa_hit": 0.0833,
+  "self_consist": 0.6,
+  "multi_avg": 0.35,
+  "multi_pass": 0.0,
+  "overall": 0.4583,
+  "n_tasks": 40
  }
 ]

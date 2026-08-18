@@ -56,16 +56,91 @@ def build_examples() -> list:
     ex += knowledge
 
     # 3) 动作格式（Agent 5 的动作协议 → 训练信号）
-    actions = [
-        ("请列出 extracted 目录的文件。",
-         '执行列目录：\n```action\n{"action":"tool","name":"list_dir","args":{"p":"/workspace/extracted"}}\n```'),
-        ("统计团队交付物数量。",
-         '用 shell 统计：\n```action\n{"action":"tool","name":"shell","args":{"cmd":"ls /workspace/antnest_team/outputs | wc -l"}}\n```'),
-        ("把结论写成报告。",
-         '写入报告文件：\n```action\n{"action":"tool","name":"write_file","args":{"p":"/workspace/antnest/artifacts/report.md","c":"antNest 报告"}}\n```'),
-        ("任务已完成。", '任务结束：\n```action\n{"action":"finish","result":"已完成"}\n```'),
+    #    M5-1 扩容：4 条 → 40+ 条（每工具 × 多措辞 × 多对象），攻 L3 工具选择
+    ex += build_action_examples()
+    return ex
+
+
+# ── M5-1：动作示例扩容（工具选择攻坚）──────────────────────
+# 每工具多条自然措辞 × 不同对象，教模型「语义 → 工具」而非「字面 → 工具」。
+TOOL_LEADS = {
+    "list_dir": ["执行列目录：", "我来查看目录内容：", "调用列目录工具："],
+    "read_file": ["读取文件：", "我来查看文件内容：", "调用读文件工具："],
+    "write_file": ["写入文件：", "我来保存内容：", "调用写文件工具："],
+    "shell": ["执行命令统计：", "用 shell 处理：", "调用命令行工具："],
+}
+
+
+def _act(kind, name, args, lead):
+    body = (json.dumps({"action": kind, "name": name, "args": args},
+                       ensure_ascii=False) if kind == "tool" else
+            json.dumps({"action": "finish", "result": "已完成"}, ensure_ascii=False))
+    return f"{lead}\n```action\n{body}\n```"
+
+
+def build_action_examples() -> list:
+    """程序化生成动作 SFT 样本：5 类动作 × 8-9 措辞 ≈ 42 条。"""
+    specs = [
+        # (工具, [(措辞, 对象参数), ...])
+        ("list_dir", [
+            ("请列出 extracted 目录的文件。", {"p": "/workspace/extracted"}),
+            ("看看 extracted 文件夹里都有什么。", {"p": "/workspace/extracted"}),
+            ("我想知道 outputs 目录下有哪些交付物。", {"p": "/workspace/antnest_team/outputs"}),
+            ("帮我查看 antnest 项目的目录结构。", {"p": "/workspace/antnest"}),
+            ("workspace 根目录下有些什么？", {"p": "/workspace"}),
+            ("列一下 artifacts 里都存了什么。", {"p": "/workspace/antnest/artifacts"}),
+            ("显示 tests 目录的内容。", {"p": "/workspace/antnest/tests"}),
+            ("查一下 evals 文件夹里的文件清单。", {"p": "/workspace/antnest/evals"}),
+        ]),
+        ("read_file", [
+            ("读取报告内容。", {"p": "/workspace/antnest/artifacts/report.md"}),
+            ("看看报告里写了什么。", {"p": "/workspace/antnest/artifacts/report.md"}),
+            ("我想看 README 的内容。", {"p": "/workspace/README.md"}),
+            ("打开训练指标文件看看。", {"p": "/workspace/antnest/artifacts/sft_metrics.json"}),
+            ("把词表文件内容展示一下。", {"p": "/workspace/antnest/artifacts/v4_vocab.json"}),
+            ("查看模型配置。", {"p": "/workspace/antnest/artifacts/v4_model_config.json"}),
+            ("读一下样本生成文件。", {"p": "/workspace/antnest/artifacts/v4_sample.txt"}),
+            ("这个 md 文件里是什么？看看 memory.md。", {"p": "/workspace/antnest/artifacts/memory.md"}),
+        ]),
+        ("write_file", [
+            ("把结论写成报告。", {"p": "/workspace/antnest/artifacts/report.md",
+                                "c": "antNest 报告"}),
+            ("把这些材料保存为一份报告。", {"p": "/workspace/antnest/artifacts/report.md",
+                                           "c": "antNest 报告"}),
+            ("把结论记入 memory.md。", {"p": "/workspace/antnest/artifacts/memory.md",
+                                       "c": "结论已记录"}),
+            ("帮我保存这些笔记。", {"p": "/workspace/antnest/artifacts/notes.md",
+                                  "c": "antNest 笔记"}),
+            ("将评测结果写入文件。", {"p": "/workspace/antnest/artifacts/eval_out.md",
+                                     "c": "评测结果"}),
+            ("生成一份总结文档。", {"p": "/workspace/antnest/artifacts/summary.md",
+                                  "c": "antNest 总结"}),
+            ("把这段话存成文本文件。", {"p": "/workspace/antnest/artifacts/t.md",
+                                      "c": "antNest 文本"}),
+            ("输出结果保存到 out.md。", {"p": "/workspace/antnest/artifacts/out.md",
+                                        "c": "输出结果"}),
+        ]),
+        ("shell", [
+            ("统计团队交付物数量。", {"cmd": "ls /workspace/antnest_team/outputs | wc -l"}),
+            ("数一数 outputs 有多少个文件。", {"cmd": "ls /workspace/antnest_team/outputs | wc -l"}),
+            ("帮我查一下词表有多少行。", {"cmd": "wc -l /workspace/antnest/artifacts/v4_vocab.json"}),
+            ("搜索文件里的关键词 antNest。", {"cmd": "grep -c antNest /workspace/README.md"}),
+            ("统计 README 的字数。", {"cmd": "wc -c /workspace/README.md"}),
+            ("列出最近修改的 python 文件。", {"cmd": "find /workspace/antnest -name *.py"}),
+            ("看看测试文件有多少个。", {"cmd": "ls /workspace/antnest/tests | wc -l"}),
+            ("用命令行查看目录占用。", {"cmd": "ls /workspace/antnest/artifacts"}),
+            ("echo 一句口号到终端。", {"cmd": "echo antNest 蚁巢计划"}),
+        ]),
     ]
-    ex += actions
+    ex = []
+    for tool, utts in specs:
+        for i, (q, args) in enumerate(utts):
+            lead = TOOL_LEADS[tool][i % len(TOOL_LEADS[tool])]
+            ex.append((q, _act("tool", tool, args, lead)))
+    # finish 类：多种结束表达
+    for q in ["任务已完成。", "任务已完成，请结束。", "所有工作已结束。", "做完了，收工吧。",
+              "以上任务全部完成。", "没有更多要做的了。", "到此结束。", "可以结束了。"]:
+        ex.append((q, _act("finish", None, None, "任务结束：")))
     return ex
 
 

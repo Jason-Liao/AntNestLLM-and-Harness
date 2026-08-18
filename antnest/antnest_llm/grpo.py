@@ -36,18 +36,39 @@ TOOL_ARGS = {"list_dir": {"p"}, "read_file": {"p"},
 
 # 任务池：prompt → (期望动作类型, 期望工具名)
 # expect_tool 为 None 表示 finish 类任务
+# M5-1 扩容：10 → 22（与 SFT 同分布增补措辞，覆盖 4 工具 × 近义表达）
 TASK_POOL = [
     ("请列出 extracted 目录的文件。", ("tool", "list_dir")),
     ("查看 /workspace 下的交付物目录。", ("tool", "list_dir")),
+    ("我想知道 outputs 目录下有哪些交付物。", ("tool", "list_dir")),
+    ("帮我查看 antnest 项目的目录结构。", ("tool", "list_dir")),
+    ("列一下 artifacts 里都存了什么。", ("tool", "list_dir")),
     ("统计团队交付物数量。", ("tool", "shell")),
     ("数一数 outputs 有多少个文件。", ("tool", "shell")),
+    ("帮我查一下词表有多少行。", ("tool", "shell")),
+    ("搜索文件里的关键词 antNest。", ("tool", "shell")),
+    ("统计 README 的字数。", ("tool", "shell")),
     ("把结论写成报告。", ("tool", "write_file")),
     ("把这些内容保存成报告文件。", ("tool", "write_file")),
+    ("帮我保存这些笔记。", ("tool", "write_file")),
+    ("生成一份总结文档。", ("tool", "write_file")),
     ("读取报告内容。", ("tool", "read_file")),
     ("看看报告里写了什么。", ("tool", "read_file")),
+    ("我想看 README 的内容。", ("tool", "read_file")),
+    ("查看模型配置。", ("tool", "read_file")),
     ("任务已完成，请结束。", ("finish", None)),
     ("所有工作已结束。", ("finish", None)),
+    ("做完了，收工吧。", ("finish", None)),
+    ("可以结束了。", ("finish", None)),
 ]
+
+# 每工具演示参数（对比学习正/负例构造用）
+TOOL_DEMO_ARGS = {
+    "list_dir": {"p": "/workspace/extracted"},
+    "read_file": {"p": "/workspace/antnest/artifacts/report.md"},
+    "write_file": {"p": "/workspace/antnest/artifacts/report.md", "c": "antNest 报告"},
+    "shell": {"cmd": "ls /workspace/antnest_team/outputs | wc -l"},
+}
 
 
 def _sandbox():
@@ -199,6 +220,73 @@ def sft_anchor_loss(model, tok, anchors: list, block: int):
     return torch.stack(losses).mean()
 
 
+# ── M5-1：动作空间对比学习（工具选择攻坚）─────────────────
+def _action_text(tool: str) -> str:
+    return ("执行：\n```action\n" + json.dumps(
+        {"action": "tool", "name": tool, "args": TOOL_DEMO_ARGS[tool]},
+        ensure_ascii=False) + "\n```")
+
+
+def build_contrast_pairs(task_pool) -> list:
+    """构造 (prompt, 正例响应, 负例响应)：负例 = 同格式但选错工具。
+
+    正误工具仅工具名不同（格式/参数键均合法），对比信号聚焦 L3 工具选择。
+    负例工具确定性轮转（hash(prompt)），保证每轮覆盖不同混淆方向。
+    """
+    pairs = []
+    for prompt, (kind, tool) in task_pool:
+        if kind != "tool" or tool is None:
+            continue
+        others = sorted(LEGAL_TOOLS - {tool})
+        neg = others[hash(prompt) % len(others)]
+        pairs.append((prompt, _action_text(tool), _action_text(neg)))
+    return pairs
+
+
+def resp_logprob(model, tok, prompt: str, resp: str):
+    """响应区间平均 token logprob（含梯度，长度归一）。
+
+    超出模型 ctx 时保留尾部（响应优先），保证任意模型尺寸下可用。
+    """
+    ctx = getattr(model, "block_size", 256)
+    rids = tok.encode(resp) or [0]
+    pids = tok.encode(f"{U}{prompt}\n{A}") or [0]
+    ids = pids + rids
+    if len(ids) > ctx + 1:                      # 超长：截头部保响应
+        ids = ids[-(ctx + 1):]
+    p_len = max(len(ids) - len(rids), 1)
+    if len(ids) <= p_len:
+        return None
+    x = torch.tensor([ids[:-1]], dtype=torch.long)
+    y = torch.tensor(ids[1:], dtype=torch.long)
+    logits, _ = model(x)
+    lp = F.log_softmax(logits[0], dim=-1)          # (T, V)
+    tgt = y[p_len - 1:]                             # 响应区间的目标 token
+    n = min(lp.size(0), tgt.numel())
+    if n <= 0:
+        return None
+    idx = torch.arange(n, device=lp.device)
+    return lp[idx, tgt[:n]].mean()
+
+
+def contrastive_loss(model, tok, pairs: list, margin: float = 0.5):
+    """pairwise margin 损失：max(0, margin − (lp_pos − lp_neg))。
+
+    同 prompt 下拉开正/误工具响应的 logprob 差，直击 L3（GRPO 组内
+    若全组选错则优势归零无梯度，对比学习补上这条梯度通路）。
+    """
+    losses = []
+    for prompt, pos, neg in pairs:
+        lp_p = resp_logprob(model, tok, prompt, pos)
+        lp_n = resp_logprob(model, tok, prompt, neg)
+        if lp_p is None or lp_n is None:
+            continue
+        losses.append(F.relu(margin - (lp_p - lp_n)))
+    if not losses:
+        return None
+    return torch.stack(losses).mean()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=30)
@@ -206,6 +294,10 @@ def main():
     ap.add_argument("--prompts_per_iter", type=int, default=4)
     ap.add_argument("--anchor_per_iter", type=int, default=3, help="每次迭代锚定样本数")
     ap.add_argument("--alpha_sft", type=float, default=0.3, help="对齐税系数 α")
+    ap.add_argument("--lambda_ctr", type=float, default=0.3,
+                    help="M5-1 动作空间对比学习系数 λ")
+    ap.add_argument("--ctr_per_iter", type=int, default=3,
+                    help="每次迭代对比对数")
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--max_new", type=int, default=64)
     ap.add_argument("--temperature", type=float, default=0.8)
@@ -233,6 +325,9 @@ def main():
 
     # 对齐税锚定池：复用 SFT QA 数据（知识问答 + 职位问答），不重复采样动作模板
     anchor_pool = [(q, a) for q, a in build_examples()]
+    # M5-1 对比池：同 prompt 下正/误工具 pairwise（L3 工具选择直训）
+    contrast_pool = build_contrast_pairs(TASK_POOL)
+    print(f"对比池：{len(contrast_pool)} 对（正例=期望工具，负例=同格式误工具）")
     rng = torch.Generator().manual_seed(3)
     history, t0, best = [], time.time(), -1.0
 
@@ -241,7 +336,7 @@ def main():
         globals()["_CURRICULUM"] = 0.2 + 0.8 * min(1.0, (it - 1) / 10)
         sel = [TASK_POOL[i] for i in torch.randperm(len(TASK_POOL), generator=rng)
                [: args.prompts_per_iter]]
-        tot_loss, tot_rew, tot_anchor, n_g = 0.0, 0.0, 0.0, 0
+        tot_loss, tot_rew, tot_anchor, tot_ctr, n_g = 0.0, 0.0, 0.0, 0.0, 0
         for prompt, expect in sel:
             model.eval()
             group, p_len = sample_group(model, tok, prompt, args.group,
@@ -263,6 +358,12 @@ def main():
             if a_nll is not None:
                 loss_t = loss_t + args.alpha_sft * a_nll
                 tot_anchor += a_nll.item()
+            # M5-1 动作空间对比批次（同 step 联合反传）
+            ci = torch.randperm(len(contrast_pool), generator=rng)[: args.ctr_per_iter]
+            c_loss = contrastive_loss(model, tok, [contrast_pool[i] for i in ci])
+            if c_loss is not None:
+                loss_t = loss_t + args.lambda_ctr * c_loss
+                tot_ctr += c_loss.item()
             opt.zero_grad(set_to_none=True)
             loss_t.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
@@ -270,12 +371,14 @@ def main():
             tot_loss += loss_t.item()
         mean_rew = tot_rew / max(1, n_g)
         mean_anchor = tot_anchor / max(1, n_g)
+        mean_ctr = tot_ctr / max(1, n_g)
         history.append({"iter": it, "loss": round(tot_loss, 4),
                         "reward": round(mean_rew, 4),
-                        "anchor_nll": round(mean_anchor, 4)})
+                        "anchor_nll": round(mean_anchor, 4),
+                        "ctr_loss": round(mean_ctr, 4)})
         if it % 5 == 0 or it == 1:
             print(f"iter {it:>3} | loss {tot_loss:>7.3f} | PRM通过率 {mean_rew:.3f} | "
-                  f"锚定NLL {mean_anchor:.3f}")
+                  f"锚定NLL {mean_anchor:.3f} | 对比loss {mean_ctr:.3f}")
         if mean_rew >= best:
             best = mean_rew
             torch.save(model.state_dict(), ART / f"{op}_ckpt.pt")
@@ -284,8 +387,9 @@ def main():
     (ART / f"{op}_model_config.json").write_text(
         (ART / f"{bp}_model_config.json").read_text(encoding="utf-8"), encoding="utf-8")
     (ART / f"{op}_metrics.json").write_text(json.dumps(
-        {"algo": "GRPO+PRM+AnchorSFT", "iters": args.iters, "group": args.group,
-         "alpha_sft": args.alpha_sft, "best_reward": round(best, 4),
+        {"algo": "GRPO+PRM+AnchorSFT+ContrastiveTools", "iters": args.iters,
+         "group": args.group, "alpha_sft": args.alpha_sft,
+         "lambda_ctr": args.lambda_ctr, "best_reward": round(best, 4),
          "final_reward": history[-1]["reward"],
          "final_anchor_nll": history[-1]["anchor_nll"],
          "seconds": round(time.time() - t0, 1), "history": history},
