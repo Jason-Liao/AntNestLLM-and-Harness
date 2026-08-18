@@ -1,0 +1,71 @@
+{
+ "config": {
+  "steps": 150,
+  "batch": 16,
+  "block": 256,
+  "lr": 0.003,
+  "n_embd": 256,
+  "n_head": 8,
+  "n_layer": 8,
+  "corpus": "v4",
+  "tokenizer": "bpe",
+  "bpe_vocab": 2600,
+  "prefix": "v4",
+  "resume": ""
+ },
+ "params": 7717928,
+ "corpus_chars": 112140,
+ "vocab": 2600,
+ "best_val_loss": 6.0744,
+ "seconds": 224.7,
+ "history": [
+  {
+   "step": 1,
+   "train_loss": 8.0198,
+   "val_loss": 7.935,
+   "lr": 0.0003
+  },
+  {
+   "step": 20,
+   "train_loss": 6.5643,
+   "val_loss": 6.985,
+   "lr": 0.003
+  },
+  {
+   "step": 40,
+   "train_loss": 5.5228,
+   "val_loss": 6.3242,
+   "lr": 0.00285
+  },
+  {
+   "step": 60,
+   "train_loss": 4.434,
+   "val_loss": 6.0744,
+   "lr": 0.00242
+  },
+  {
+   "step": 80,
+   "train_loss": 3.5553,
+   "val_loss": 6.4282,
+   "lr": 0.00181
+  },
+  {
+   "step": 100,
+   "train_loss": 3.2414,
+   "val_loss": 6.3882,
+   "lr": 0.00117
+  },
+  {
+   "step": 120,
+   "train_loss": 2.7406,
+   "val_loss": 6.3727,
+   "lr": 0.00064
+  },
+  {
+   "step": 140,
+   "train_loss": 2.8349,
+   "val_loss": 6.2951,
+   "lr": 0.00034
+  }
+ ]
+}

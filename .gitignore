@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 大模型权重（超 GitHub 单文件限制；保留 metrics/config/vocab/sample 供复现）
+antnest/artifacts/*.pt
+antnest/artifacts/test_tmp/
+antnest/.pytest_cache/
+
+# 系统文件
+.DS_Store
+*.log

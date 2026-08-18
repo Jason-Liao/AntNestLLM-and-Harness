@@ -1,0 +1,18 @@
+{
+  "_说明": "M3 独立评测集：与 sft.py/grpo.py 训练任务池物理隔离，措辞不同、语义等价，永不进入训练梯度。",
+  "action_tasks": [
+    {"prompt": "帮我看看 extracted 文件夹里都有什么。", "expect": "tool"},
+    {"prompt": "outputs 目录下的文件给我列一下。", "expect": "tool"},
+    {"prompt": "现在交付物一共有多少个？", "expect": "tool"},
+    {"prompt": "把这些内容保存成报告文件。", "expect": "tool"},
+    {"prompt": "报告写了什么，给我念念。", "expect": "tool"},
+    {"prompt": "这轮工作到此为止吧。", "expect": "finish"},
+    {"prompt": "好了，可以收工了。", "expect": "finish"}
+  ],
+  "qa_tasks": [
+    {"prompt": "蚁巢计划要做出哪两样东西？", "keys": ["antNest LLM", "Harness"]},
+    {"prompt": "Harness 里管工具安全的是哪个机制？", "keys": ["沙箱", "DSec"]},
+    {"prompt": "antNest 用什么测试框架做质量门禁？", "keys": ["pytest"]},
+    {"prompt": "模型分词用的是什么算法？", "keys": ["BPE"]}
+  ]
+}

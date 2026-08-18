@@ -1,0 +1,210 @@
+{
+ "algo": "GRPO",
+ "iters": 40,
+ "group": 6,
+ "best_reward": 0.2175,
+ "final_reward": 0.0575,
+ "seconds": 167.7,
+ "history": [
+  {
+   "iter": 1,
+   "loss": -0.053,
+   "reward": 0.0225
+  },
+  {
+   "iter": 2,
+   "loss": -0.2087,
+   "reward": 0.03
+  },
+  {
+   "iter": 3,
+   "loss": 0.4137,
+   "reward": 0.07
+  },
+  {
+   "iter": 4,
+   "loss": 2.0052,
+   "reward": 0.095
+  },
+  {
+   "iter": 5,
+   "loss": 6.1867,
+   "reward": 0.15
+  },
+  {
+   "iter": 6,
+   "loss": 3.8216,
+   "reward": 0.1925
+  },
+  {
+   "iter": 7,
+   "loss": 10.2358,
+   "reward": 0.2175
+  },
+  {
+   "iter": 8,
+   "loss": 9.1745,
+   "reward": 0.1625
+  },
+  {
+   "iter": 9,
+   "loss": 5.4598,
+   "reward": 0.0775
+  },
+  {
+   "iter": 10,
+   "loss": 4.957,
+   "reward": 0.0375
+  },
+  {
+   "iter": 11,
+   "loss": 7.5347,
+   "reward": 0.02
+  },
+  {
+   "iter": 12,
+   "loss": 9.4191,
+   "reward": 0.0325
+  },
+  {
+   "iter": 13,
+   "loss": 8.4003,
+   "reward": 0.0275
+  },
+  {
+   "iter": 14,
+   "loss": 14.1996,
+   "reward": 0.03
+  },
+  {
+   "iter": 15,
+   "loss": 7.9778,
+   "reward": 0.03
+  },
+  {
+   "iter": 16,
+   "loss": 5.3618,
+   "reward": 0.0125
+  },
+  {
+   "iter": 17,
+   "loss": 3.0436,
+   "reward": 0.005
+  },
+  {
+   "iter": 18,
+   "loss": 3.8308,
+   "reward": 0.01
+  },
+  {
+   "iter": 19,
+   "loss": 5.2002,
+   "reward": 0.02
+  },
+  {
+   "iter": 20,
+   "loss": 5.326,
+   "reward": 0.025
+  },
+  {
+   "iter": 21,
+   "loss": 7.9318,
+   "reward": 0.025
+  },
+  {
+   "iter": 22,
+   "loss": 5.7671,
+   "reward": 0.0175
+  },
+  {
+   "iter": 23,
+   "loss": 5.44,
+   "reward": 0.02
+  },
+  {
+   "iter": 24,
+   "loss": 5.4058,
+   "reward": 0.02
+  },
+  {
+   "iter": 25,
+   "loss": 5.0408,
+   "reward": 0.0275
+  },
+  {
+   "iter": 26,
+   "loss": 4.8694,
+   "reward": 0.0375
+  },
+  {
+   "iter": 27,
+   "loss": 5.6601,
+   "reward": 0.035
+  },
+  {
+   "iter": 28,
+   "loss": 4.8324,
+   "reward": 0.035
+  },
+  {
+   "iter": 29,
+   "loss": 4.6472,
+   "reward": 0.035
+  },
+  {
+   "iter": 30,
+   "loss": 3.2447,
+   "reward": 0.0525
+  },
+  {
+   "iter": 31,
+   "loss": 4.0793,
+   "reward": 0.04
+  },
+  {
+   "iter": 32,
+   "loss": 2.4738,
+   "reward": 0.055
+  },
+  {
+   "iter": 33,
+   "loss": 4.2079,
+   "reward": 0.0475
+  },
+  {
+   "iter": 34,
+   "loss": 0.2738,
+   "reward": 0.06
+  },
+  {
+   "iter": 35,
+   "loss": 1.2899,
+   "reward": 0.055
+  },
+  {
+   "iter": 36,
+   "loss": 2.2058,
+   "reward": 0.055
+  },
+  {
+   "iter": 37,
+   "loss": 1.9354,
+   "reward": 0.055
+  },
+  {
+   "iter": 38,
+   "loss": 0.2608,
+   "reward": 0.06
+  },
+  {
+   "iter": 39,
+   "loss": 0.7672,
+   "reward": 0.0575
+  },
+  {
+   "iter": 40,
+   "loss": 0.9856,
+   "reward": 0.0575
+  }
+ ]
+}

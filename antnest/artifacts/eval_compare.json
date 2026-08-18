@@ -1,0 +1,38 @@
+[
+ {
+  "ckpt": "v3",
+  "action_pass": 0.0,
+  "qa_hit": 0.0,
+  "overall": 0.0
+ },
+ {
+  "ckpt": "sft3",
+  "action_pass": 0.0,
+  "qa_hit": 0.25,
+  "overall": 0.0909
+ },
+ {
+  "ckpt": "grpo",
+  "action_pass": 0.2143,
+  "qa_hit": 0.125,
+  "overall": 0.1818
+ },
+ {
+  "ckpt": "v4",
+  "action_pass": 0.0,
+  "qa_hit": 0.0,
+  "overall": 0.0
+ },
+ {
+  "ckpt": "sft4",
+  "action_pass": 0.0,
+  "qa_hit": 0.25,
+  "overall": 0.0909
+ },
+ {
+  "ckpt": "grpo4",
+  "action_pass": 0.3,
+  "qa_hit": 0.0,
+  "overall": 0.1909
+ }
+]
