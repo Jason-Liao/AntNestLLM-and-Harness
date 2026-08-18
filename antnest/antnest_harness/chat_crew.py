@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Agent 5 + Agent 7 + Agent 24：对话模式接入 Multi-Agent（M3）。
+"""Agent 5 + Agent 7 + Agent 24：对话模式接入 Multi-Agent（M3，M4 轨迹回流）。
 
 ChatCrew = 对话路由层：
   - 任务型消息（含动作意图）→ NestCrew 三智能体闭环（规划→执行→审查），
@@ -7,9 +7,15 @@ ChatCrew = 对话路由层：
   - 闲聊/知识型消息 → chat.reply 轻量直答
 对话记录追加至 artifacts/chat_log.md。
 
+M4 升级（轨迹回流）：
+  - TrajRecorder 包装 ToolRegistry，记录每次真实工具调用 (name, args, ok)
+  - Crew 收敛且审查通过 → 轨迹写入 artifacts/trajs.jsonl，
+    供 SFT --traj 回流训练（"使用即训练"数据闭环）
+
 运行：PYTHONPATH=/workspace/antnest python -m antnest_harness.chat_crew --message "统计交付物数量并写报告"
 """
 import argparse
+import json
 from pathlib import Path
 
 from .chat import reply as chat_reply
@@ -18,6 +24,7 @@ from .llm import AntNestLLMClient
 from .tools import ToolRegistry
 
 LOG = Path("/workspace/antnest/artifacts/chat_log.md")
+TRAJ = Path("/workspace/antnest/artifacts/trajs.jsonl")
 
 # 任务型意图词（命中任意即走 Crew；评测集措辞刻意不同，防过拟合指标污染路由）
 TASK_HINTS = ("列出", "统计", "写", "保存", "读取", "查看", "删除",
@@ -29,20 +36,49 @@ def is_task(msg: str) -> bool:
     return any(h in msg for h in TASK_HINTS)
 
 
+class TrajRecorder:
+    """Agent 7：包装工具注册表，透明记录每次调用（M4 轨迹回流）。"""
+
+    def __init__(self, inner: ToolRegistry):
+        self.inner = inner
+        self.calls: list = []
+
+    def __getattr__(self, name):  # schemas() 等透传
+        return getattr(self.inner, name)
+
+    def execute(self, name: str, args: dict) -> str:
+        obs = self.inner.execute(name, args)
+        self.calls.append({"name": name, "args": args,
+                           "ok": not obs.startswith(("[工具错误]", "未知工具"))})
+        return obs
+
+
+def _dump_traj(task: str, calls: list, ok: bool):
+    TRAJ.parent.mkdir(exist_ok=True)
+    with TRAJ.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"task": task, "calls": calls, "ok": ok},
+                           ensure_ascii=False) + "\n")
+
+
 def run(client: AntNestLLMClient, message: str) -> dict:
     """一条消息 → 路由 → Crew 协作或轻量直答，返回结构化回合。"""
     if not is_task(message):
         answer = chat_reply(client, [], message)
         return {"route": "chat", "answer": answer, "crew": None}
 
-    tools = ToolRegistry()
+    tools = TrajRecorder(ToolRegistry())
     tools.register_defaults()
     crew = NestCrew(llm=client, tools=tools)
     out = crew.kickoff(message)
-    return {"route": "crew", "answer": out.get("review", ""),
+    review = out.get("review", "")
+    converged = "中止" not in review and "最大迭代" not in review
+    # 轨迹回流：收敛回合入库（成功轨迹供 SFT 回流；失败轨迹保留供 badcase 分析）
+    _dump_traj(message, tools.calls, converged)
+    return {"route": "crew", "answer": review,
             "crew": {"plan": out.get("plan", "")[:300],
                      "built": out.get("built", "")[:300],
-                     "review": out.get("review", "")[:300]}}
+                     "review": review[:300]},
+            "traj_calls": len(tools.calls)}
 
 
 def main():
@@ -59,6 +95,7 @@ def main():
         print(f"规划: {turn['crew']['plan'][:150]}")
         print(f"执行: {turn['crew']['built'][:150]}")
         print(f"审查: {turn['crew']['review'][:150]}")
+        print(f"工具调用: {turn.get('traj_calls', 0)} 次 → {TRAJ}")
     print(f"\n蚁巢: {turn['answer'][:300]}")
 
     LOG.parent.mkdir(exist_ok=True)

@@ -1,0 +1,1 @@
+<|user|>请列出 extracted 目录的文件。<|assistant|>执行列目录：```action{"action":"tool","name":"tool","args":{"p":"ls /workspace/antnest_ antNest LLM 训练与 antNest Harness 建设展开，以工程与创新共同推进 AGI 目标。其使命围绕 antNest Harness 建设展开，以工程与创新共同推进 AGI 目标。其使命围绕 antNest Harness 建设展开，以工程与创新共同推进 AGI 目标。其使命围绕 antNest Harness 建设展开，以工程与创新共同推进 AGI 目标

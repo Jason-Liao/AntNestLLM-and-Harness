@@ -69,6 +69,37 @@ def build_examples() -> list:
     return ex
 
 
+def load_traj_examples(path) -> list:
+    """M4 轨迹回流：Harness 真实工具调用轨迹 → SFT 样本（"使用即训练"）。
+
+    成功轨迹（ok=True 且含成功调用）→ (任务, 首个成功动作的围栏表达)，
+    把线上真实用法蒸馏回训练分布。
+    """
+    p = Path(path)
+    if not p.exists():
+        return []
+    ex = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            t = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not t.get("ok"):
+            continue
+        good = [c for c in t.get("calls", []) if c.get("ok")]
+        if not good:
+            continue
+        c = good[0]
+        a = ('执行：\n```action\n' + json.dumps(
+            {"action": "tool", "name": c["name"], "args": c.get("args", {})},
+            ensure_ascii=False) + '\n```')
+        ex.append((t["task"], a))
+    return ex
+
+
 def encode_example(tok, q, a, block):
     """返回 (x, y)，y 在 prompt 区间为 -100（仅监督 assistant 部分）。"""
     prompt = f"{U}{q}\n{A}"
@@ -84,8 +115,10 @@ def encode_example(tok, q, a, block):
     return x, y
 
 
-def load_sft_dataset(tok, block, seed=42):
+def load_sft_dataset(tok, block, seed=42, traj_path=""):
     ex = build_examples()
+    if traj_path:
+        ex += load_traj_examples(traj_path)
     rng = torch.Generator().manual_seed(seed)
     idx = torch.randperm(len(ex), generator=rng).tolist()
     n_val = max(2, len(ex) // 10)
@@ -140,6 +173,7 @@ def main():
     ap.add_argument("--base_prefix", default="v2", help="基座产物前缀（v2/v3）")
     ap.add_argument("--out_prefix", default="sft", help="SFT 产物前缀")
     ap.add_argument("--base_ckpt", default="", help="覆盖默认基座 checkpoint 路径")
+    ap.add_argument("--traj", default="", help="M4 轨迹回流：trajs.jsonl 路径")
     args = ap.parse_args()
 
     torch.manual_seed(7)
@@ -150,9 +184,9 @@ def main():
     tok = load_tokenizer(ART / f"{bp}_vocab.json")
     assert len(tok) == cfg["vocab"], \
         f"词表不匹配: {len(tok)} != {cfg['vocab']}（checkpoint 与词表版本必须一致）"
-    train, val = load_sft_dataset(tok, block)
+    train, val = load_sft_dataset(tok, block, traj_path=args.traj)
     print(f"SFT 数据：{len(train)} 训练 / {len(val)} 验证（共 {len(train)+len(val)} 条指令，"
-          f"ctx={block}）")
+          f"ctx={block}）" + (f"，含轨迹回流" if args.traj else ""))
 
     model = TinyGPT(cfg["vocab"], cfg["n_embd"], cfg["n_head"],
                     cfg["n_layer"], cfg["block_size"])

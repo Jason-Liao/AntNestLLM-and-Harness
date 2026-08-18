@@ -1,18 +1,43 @@
 {
-  "_说明": "M3 独立评测集：与 sft.py/grpo.py 训练任务池物理隔离，措辞不同、语义等价，永不进入训练梯度。",
+  "_说明": "M4 独立评测集（扩容版）：与 grpo.py TASK_POOL 物理隔离、措辞不同、语义等价。expect.tool 为期望工具名（L3 工具选择分）。永不进入训练梯度。",
   "action_tasks": [
-    {"prompt": "帮我看看 extracted 文件夹里都有什么。", "expect": "tool"},
-    {"prompt": "outputs 目录下的文件给我列一下。", "expect": "tool"},
-    {"prompt": "现在交付物一共有多少个？", "expect": "tool"},
-    {"prompt": "把这些内容保存成报告文件。", "expect": "tool"},
-    {"prompt": "报告写了什么，给我念念。", "expect": "tool"},
-    {"prompt": "这轮工作到此为止吧。", "expect": "finish"},
-    {"prompt": "好了，可以收工了。", "expect": "finish"}
+    {"prompt": "帮我看看 extracted 文件夹里都有什么。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "outputs 目录下的文件给我列一下。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "帮我看看 antnest 目录里装了啥。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "给我一份 corpus 相关文件的清单。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "看看 evals 文件夹都有什么。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "查看一眼 tests 目录内容。", "expect": "tool", "tool": "list_dir"},
+    {"prompt": "现在交付物一共有多少个？", "expect": "tool", "tool": "shell"},
+    {"prompt": "帮忙数数 outputs 里一共有多少文件。", "expect": "tool", "tool": "shell"},
+    {"prompt": "统计下 metrics 文件的行数。", "expect": "tool", "tool": "shell"},
+    {"prompt": "看看 outputs 里 md 文件有多少个。", "expect": "tool", "tool": "shell"},
+    {"prompt": "用命令统计一下交付物总数。", "expect": "tool", "tool": "shell"},
+    {"prompt": "统计一下 extracted 的文件数量。", "expect": "tool", "tool": "shell"},
+    {"prompt": "把这些材料保存为一份报告。", "expect": "tool", "tool": "write_file"},
+    {"prompt": "将结论写到总结文档里。", "expect": "tool", "tool": "write_file"},
+    {"prompt": "帮我把结果记成一份报告。", "expect": "tool", "tool": "write_file"},
+    {"prompt": "以上内容请写入笔记文件。", "expect": "tool", "tool": "write_file"},
+    {"prompt": "生成报告并保存下来。", "expect": "tool", "tool": "write_file"},
+    {"prompt": "报告写了什么，给我念念。", "expect": "tool", "tool": "read_file"},
+    {"prompt": "打开 metrics 文件看看数值。", "expect": "tool", "tool": "read_file"},
+    {"prompt": "读取一下最近的冲刺报告。", "expect": "tool", "tool": "read_file"},
+    {"prompt": "看看 vocab 里都有哪些词。", "expect": "tool", "tool": "read_file"},
+    {"prompt": "这轮工作到此为止吧。", "expect": "finish", "tool": null},
+    {"prompt": "好了，可以收工了。", "expect": "finish", "tool": null},
+    {"prompt": "目标达成，就此收工。", "expect": "finish", "tool": null}
   ],
   "qa_tasks": [
     {"prompt": "蚁巢计划要做出哪两样东西？", "keys": ["antNest LLM", "Harness"]},
     {"prompt": "Harness 里管工具安全的是哪个机制？", "keys": ["沙箱", "DSec"]},
     {"prompt": "antNest 用什么测试框架做质量门禁？", "keys": ["pytest"]},
-    {"prompt": "模型分词用的是什么算法？", "keys": ["BPE"]}
+    {"prompt": "模型分词用的是什么算法？", "keys": ["BPE"]},
+    {"prompt": "antNest LLM 采用什么网络结构？", "keys": ["Decoder-only", "Transformer"]},
+    {"prompt": "强化学习阶段用的什么算法？", "keys": ["GRPO"]},
+    {"prompt": "预训练学习率调度怎么做的？", "keys": ["预热", "余弦"]},
+    {"prompt": "SFT 训练时 prompt 部分怎么处理？", "keys": ["掩码"]},
+    {"prompt": "antNest 团队一共有多少个职位？", "keys": ["32"]},
+    {"prompt": "过拟合的常见对策有哪些？", "keys": ["正则化"]},
+    {"prompt": "Agent Loop 的动作用什么格式表达？", "keys": ["JSON"]},
+    {"prompt": "蚁巢计划的中文名是什么？", "keys": ["蚁巢"]}
   ]
 }

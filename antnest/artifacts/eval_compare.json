@@ -1,38 +1,26 @@
 [
  {
-  "ckpt": "v3",
-  "action_pass": 0.0,
-  "qa_hit": 0.0,
-  "overall": 0.0
+  "ckpt": "grpo4",
+  "action_pass": 0.3,
+  "pass@1": 0.0,
+  "qa_hit": 0.0833,
+  "overall": 0.2278,
+  "n_tasks": 36
  },
  {
-  "ckpt": "sft3",
-  "action_pass": 0.0,
-  "qa_hit": 0.25,
-  "overall": 0.0909
- },
- {
-  "ckpt": "grpo",
-  "action_pass": 0.2143,
-  "qa_hit": 0.125,
-  "overall": 0.1818
- },
- {
-  "ckpt": "v4",
-  "action_pass": 0.0,
-  "qa_hit": 0.0,
-  "overall": 0.0
+  "ckpt": "grpo5",
+  "action_pass": 0.2875,
+  "pass@1": 0.0,
+  "qa_hit": 0.1667,
+  "overall": 0.2472,
+  "n_tasks": 36
  },
  {
   "ckpt": "sft4",
   "action_pass": 0.0,
-  "qa_hit": 0.25,
-  "overall": 0.0909
- },
- {
-  "ckpt": "grpo4",
-  "action_pass": 0.3,
-  "qa_hit": 0.0,
-  "overall": 0.1909
+  "pass@1": 0.0,
+  "qa_hit": 0.1667,
+  "overall": 0.0556,
+  "n_tasks": 36
  }
 ]
