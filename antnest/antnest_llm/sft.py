@@ -174,20 +174,15 @@ def build_action_examples() -> list:
 
 
 # ── M6-1：多轮上下文样本（(任务, 历史, 动作) 三元组）────────
-def build_multiturn_examples() -> list:
-    """多步任务的多轮样本：上下文 = 任务 + 已完成步骤的历史摘要，
-    与 eval.run_multi_step 的观察回填格式逐字一致（第N步已完成，使用了
-    X，结果正常。继续下一步。），教模型依据历史选出正确的下一步动作。
+def multiturn_ctx(task: str, step: int, tool: str) -> str:
+    """历史回填格式（与 eval.run_multi_step 逐字一致）。M7-1 起 GRPO 复用。"""
+    return (f"{task}\n（第{step}步已完成，使用了 {tool}，结果正常。）"
+            f"继续下一步。")
 
-    训练任务措辞与评测集 multi_tasks 物理隔离（语义同类、字面不同），
-    多步全通率为 0 的根因即训练分布中从未出现过带历史的上下文。
-    """
-    def _ctx(task: str, step: int, tool: str) -> str:
-        return (f"{task}\n（第{step}步已完成，使用了 {tool}，结果正常。）"
-                f"继续下一步。")
 
-    # (任务, [(步号, 该步使用的工具, 期望的下一动作 (kind, tool, args))])
-    specs = [
+# (任务, [(步号, 该步使用的工具, 期望的下一动作 (kind, tool, args))])
+# M7-1：提升为模块级常量，供 GRPO 多步穿透复用（同一训练分布）
+MULTITURN_SPECS = [
         ("查看一下 extracted 目录里有什么，随后把文件名清单存档。",
          [(1, "list_dir", ("tool", "write_file",
                            {"p": "/workspace/antnest/artifacts/list.md", "c": "文件清单"})),
@@ -230,11 +225,21 @@ def build_multiturn_examples() -> list:
          [(1, "grep", ("tool", "write_file",
                        {"p": "/workspace/antnest/artifacts/grep_out.md", "c": "检索结果"})),
           (2, "write_file", ("finish", None, None))]),
-    ]
+]
+
+
+def build_multiturn_examples() -> list:
+    """多步任务的多轮样本：上下文 = 任务 + 已完成步骤的历史摘要，
+    与 eval.run_multi_step 的观察回填格式逐字一致（第N步已完成，使用了
+    X，结果正常。继续下一步。），教模型依据历史选出正确的下一步动作。
+
+    训练任务措辞与评测集 multi_tasks 物理隔离（语义同类、字面不同），
+    多步全通率为 0 的根因即训练分布中从未出现过带历史的上下文。
+    """
     ex = []
-    for task, trans in specs:
+    for task, trans in MULTITURN_SPECS:
         for j, (step, used, (kind, tool, args)) in enumerate(trans):
-            q = _ctx(task, step, used)
+            q = multiturn_ctx(task, step, used)
             if kind == "finish":
                 ex.append((q, _act("finish", None, None, "任务结束：")))
             else:

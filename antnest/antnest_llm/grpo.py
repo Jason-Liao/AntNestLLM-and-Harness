@@ -87,6 +87,36 @@ TOOL_DEMO_ARGS = {
     "find": {"dir": "/workspace/antnest", "name": "*.py"},
 }
 
+# M7-2：参数级负例——同工具、同格式、参数键名错误（L4 直训）。
+# 选用"语义正确但键名拼写错误"的负例（如 path/query 替代 p/q），
+# 这是 LLM 生成动作时最常见的参数级错误形态。
+PARAM_NEG_ARGS = {
+    "list_dir": {"path": "/workspace/extracted"},
+    "read_file": {"file": "/workspace/antnest/artifacts/report.md"},
+    "write_file": {"file": "/workspace/antnest/artifacts/report.md",
+                   "content": "antNest 报告"},
+    "shell": {"command": "ls /workspace/antnest_team/outputs | wc -l"},
+    "grep": {"path": "/workspace/README.md", "query": "Harness"},
+    "find": {"directory": "/workspace/antnest", "pattern": "*.py"},
+}
+
+
+# ── M7-1：多步穿透池（PRM 穿透链式任务）────────────────────
+def build_multistep_pool() -> list:
+    """把多步链展开为逐步 GRPO 训练项：每步 = (带历史的 prompt, 期望动作)。
+
+    SFT 三元组只教了"见历史选对动作"的模仿；GRPO 多步池再让 PRM 对
+    每一步逐步打分（组内对比 + L1-L5 过程奖励），链式任务的全通率
+    攻坚从"见过分布"升级为"在分布上被强化"。历史回填格式与
+    eval.run_multi_step / sft.multiturn_ctx 逐字一致。
+    """
+    from .sft import MULTITURN_SPECS, multiturn_ctx
+    pool = []
+    for task, trans in MULTITURN_SPECS:
+        for step, used, (kind, tool, _args) in trans:
+            pool.append((multiturn_ctx(task, step, used), (kind, tool)))
+    return pool
+
 
 # ── M6-2：α 动态调度（对齐税再平衡）────────────────────────
 def alpha_at(it: int, total: int, a_min: float = 0.1, a_max: float = 0.5) -> float:
@@ -271,6 +301,30 @@ def build_contrast_pairs(task_pool) -> list:
     return pairs
 
 
+# ── M7-2：参数级对比学习（L4 攻坚）────────────────────────
+def _action_text_args(tool: str, args: dict) -> str:
+    return ("执行：\n```action\n" + json.dumps(
+        {"action": "tool", "name": tool, "args": args},
+        ensure_ascii=False) + "\n```")
+
+
+def build_param_pairs(task_pool) -> list:
+    """参数级对比对：正例 = 正确参数键，负例 = 同工具但键名拼写错误。
+
+    M5-1 的对比负例是"选错工具"（L3），模型对齐后组内奖励已能区分；
+    M7-2 补上"选对工具但参数键错"的负例（如 grep 的 path/query 替代
+    p/q）——L4 在 PRM 中仅占 0.15，组内对比信号弱，pairwise margin
+    直训参数键拼写，检索类工具（grep/find 双参数）受益最大。
+    """
+    pairs = []
+    for prompt, (kind, tool) in task_pool:
+        if kind != "tool" or tool is None or tool not in PARAM_NEG_ARGS:
+            continue
+        pairs.append((prompt, _action_text_args(tool, TOOL_DEMO_ARGS[tool]),
+                      _action_text_args(tool, PARAM_NEG_ARGS[tool])))
+    return pairs
+
+
 def resp_logprob(model, tok, prompt: str, resp: str):
     """响应区间平均 token logprob（含梯度，长度归一）。
 
@@ -356,16 +410,20 @@ def main():
 
     # 对齐税锚定池：复用 SFT QA 数据（知识问答 + 职位问答），不重复采样动作模板
     anchor_pool = [(q, a) for q, a in build_examples()]
-    # M5-1 对比池：同 prompt 下正/误工具 pairwise（L3 工具选择直训）
-    contrast_pool = build_contrast_pairs(TASK_POOL)
-    print(f"对比池：{len(contrast_pool)} 对（正例=期望工具，负例=同格式误工具）")
+    # M7-1 训练池：单步任务 + 多步链逐步展开（PRM 穿透链式任务）
+    train_pool = TASK_POOL + build_multistep_pool()
+    # 对比池（M5-1 工具级 L3 + M7-2 参数级 L4）
+    contrast_pool = build_contrast_pairs(train_pool) + build_param_pairs(train_pool)
+    print(f"训练池：{len(train_pool)} 项（含多步 {len(train_pool) - len(TASK_POOL)} 项）")
+    print(f"对比池：{len(contrast_pool)} 对（工具级 {len(build_contrast_pairs(train_pool))}"
+          f" + 参数级 {len(build_param_pairs(train_pool))}）")
     rng = torch.Generator().manual_seed(3)
     history, t0, best = [], time.time(), -1.0
 
     for it in range(1, args.iters + 1):
         # 奖励课程：前 warm 阶段 L3-L5 打 2 折起步，10 迭代内线性升至全严格
         globals()["_CURRICULUM"] = 0.2 + 0.8 * min(1.0, (it - 1) / 10)
-        sel = [TASK_POOL[i] for i in torch.randperm(len(TASK_POOL), generator=rng)
+        sel = [train_pool[i] for i in torch.randperm(len(train_pool), generator=rng)
                [: args.prompts_per_iter]]
         tot_loss, tot_rew, tot_anchor, tot_ctr, n_g = 0.0, 0.0, 0.0, 0.0, 0
         # M6-2：α 动态调度（线性退火：前期重锚定保 QA，后期释放策略空间）
@@ -421,7 +479,7 @@ def main():
     (ART / f"{op}_model_config.json").write_text(
         (ART / f"{bp}_model_config.json").read_text(encoding="utf-8"), encoding="utf-8")
     (ART / f"{op}_metrics.json").write_text(json.dumps(
-        {"algo": "GRPO+PRM+AnchorSFT+ContrastiveTools+AlphaSchedule", "iters": args.iters,
+        {"algo": "GRPO+PRM+AnchorSFT+ContrastiveTools+AlphaSchedule+MultistepPool+ParamContrast", "iters": args.iters,
          "group": args.group, "alpha_sft": args.alpha_sft, "alpha_min": args.alpha_min,
          "lambda_ctr": args.lambda_ctr, "best_reward": round(best, 4),
          "final_reward": history[-1]["reward"],

@@ -1,0 +1,10 @@
+# M7-4 批量轨迹积累任务清单（措辞与 evals/evalset.json 物理隔离）
+# 用法：python -m antnest_harness.chat_crew --batch artifacts/batch_tasks.txt
+统计一下团队交付物有多少份
+列出 artifacts 目录里的文件
+查看 README 的内容
+把本次运行结论保存为笔记
+在 README 里搜一下蚁巢这个词
+找出 antnest 下所有的 md 文件
+统计一下 tests 目录有几个测试脚本
+读取训练指标文件的内容

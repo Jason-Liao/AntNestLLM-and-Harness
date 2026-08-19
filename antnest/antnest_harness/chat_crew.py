@@ -83,14 +83,51 @@ def run(client: AntNestLLMClient, message: str) -> dict:
             "traj_calls": len(tools.calls)}
 
 
+def read_batch_tasks(path: str) -> list:
+    """M7-4：读取批量任务文件（每行一条，# 开头为注释，去空行）。"""
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines
+            if ln.strip() and not ln.strip().startswith("#")]
+
+
+def run_batch(client, messages: list) -> dict:
+    """M7-4：批量任务模式——一条命令积累一批轨迹（轨迹积累提速）。
+
+    进化闭环的瓶颈在轨迹积累速度：逐条对话喂任务太慢，批量模式
+    一次跑 N 条任务型消息，成功轨迹连续入库 artifacts/trajs.jsonl，
+    供 evolve.py 检测新轨迹触发增量进化。
+    """
+    stats = {"crew": 0, "chat": 0, "trajs": 0}
+    for i, msg in enumerate(messages, 1):
+        turn = run(client, msg)
+        route = turn["route"]
+        stats[route] = stats.get(route, 0) + 1
+        if route == "crew":
+            stats["trajs"] += 1
+        print(f"[{i}/{len(messages)}] {route.upper():4} | 工具调用 "
+              f"{turn.get('traj_calls', 0)} 次 | {msg[:40]}")
+    return stats
+
+
 def main():
     ap = argparse.ArgumentParser(description="antNest 对话 × Multi-Agent")
     ap.add_argument("--message", default="统计团队交付物数量并写成报告")
+    ap.add_argument("--batch", default=None,
+                    help="M7-4 批量任务文件：每行一条消息，轨迹批量积累")
     args = ap.parse_args()
 
     client = AntNestLLMClient()
     print(f"antNest ChatCrew | checkpoint: {client.ckpt_name} | "
           f"参数 {sum(p.numel() for p in client.model.parameters())/1e6:.1f}M")
+
+    if args.batch:
+        messages = read_batch_tasks(args.batch)
+        print(f"批量模式：{len(messages)} 条任务 → 轨迹批量积累\n")
+        stats = run_batch(client, messages)
+        print(f"\n完成：Crew {stats['crew']} 条 / Chat {stats['chat']} 条 | "
+              f"轨迹 +{stats['trajs']} 条 → {TRAJ}")
+        return
+
     turn = run(client, args.message)
     print(f"\n路由: {turn['route'].upper()}")
     if turn["crew"]:

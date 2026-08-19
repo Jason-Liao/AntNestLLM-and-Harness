@@ -1,0 +1,254 @@
+{
+ "algo": "GRPO+PRM+AnchorSFT+ContrastiveTools+AlphaSchedule+MultistepPool+ParamContrast",
+ "iters": 30,
+ "group": 6,
+ "alpha_sft": 0.7,
+ "alpha_min": 0.2,
+ "lambda_ctr": 0.3,
+ "best_reward": 1.0,
+ "final_reward": 0.7779,
+ "final_anchor_nll": 0.1617,
+ "seconds": 1053.0,
+ "history": [
+  {
+   "iter": 1,
+   "loss": 0.6761,
+   "reward": 0.62,
+   "anchor_nll": 0.0247,
+   "ctr_loss": 0.4498,
+   "alpha": 0.7
+  },
+  {
+   "iter": 2,
+   "loss": 0.8938,
+   "reward": 0.5334,
+   "anchor_nll": 0.2292,
+   "ctr_loss": 0.2289,
+   "alpha": 0.6828
+  },
+  {
+   "iter": 3,
+   "loss": 0.5225,
+   "reward": 0.6372,
+   "anchor_nll": 0.1293,
+   "ctr_loss": 0.153,
+   "alpha": 0.6655
+  },
+  {
+   "iter": 4,
+   "loss": 1.0635,
+   "reward": 0.5012,
+   "anchor_nll": 0.2624,
+   "ctr_loss": 0.0573,
+   "alpha": 0.6483
+  },
+  {
+   "iter": 5,
+   "loss": 0.4178,
+   "reward": 0.707,
+   "anchor_nll": 0.0488,
+   "ctr_loss": 0.0424,
+   "alpha": 0.631
+  },
+  {
+   "iter": 6,
+   "loss": 0.6835,
+   "reward": 0.5392,
+   "anchor_nll": 0.0461,
+   "ctr_loss": 0.0669,
+   "alpha": 0.6138
+  },
+  {
+   "iter": 7,
+   "loss": 0.493,
+   "reward": 0.7023,
+   "anchor_nll": 0.1684,
+   "ctr_loss": 0.0548,
+   "alpha": 0.5966
+  },
+  {
+   "iter": 8,
+   "loss": 0.3891,
+   "reward": 0.798,
+   "anchor_nll": 0.1033,
+   "ctr_loss": 0.0954,
+   "alpha": 0.5793
+  },
+  {
+   "iter": 9,
+   "loss": 0.3476,
+   "reward": 0.8042,
+   "anchor_nll": 0.0463,
+   "ctr_loss": 0.1355,
+   "alpha": 0.5621
+  },
+  {
+   "iter": 10,
+   "loss": 0.3403,
+   "reward": 0.7963,
+   "anchor_nll": 0.0991,
+   "ctr_loss": 0.0717,
+   "alpha": 0.5448
+  },
+  {
+   "iter": 11,
+   "loss": 0.2945,
+   "reward": 0.8521,
+   "anchor_nll": 0.0613,
+   "ctr_loss": 0.0481,
+   "alpha": 0.5276
+  },
+  {
+   "iter": 12,
+   "loss": 0.3532,
+   "reward": 0.7292,
+   "anchor_nll": 0.0701,
+   "ctr_loss": 0.0377,
+   "alpha": 0.5103
+  },
+  {
+   "iter": 13,
+   "loss": 0.1729,
+   "reward": 1.0,
+   "anchor_nll": 0.0677,
+   "ctr_loss": 0.0,
+   "alpha": 0.4931
+  },
+  {
+   "iter": 14,
+   "loss": 0.1096,
+   "reward": 0.9292,
+   "anchor_nll": 0.0301,
+   "ctr_loss": 0.0,
+   "alpha": 0.4759
+  },
+  {
+   "iter": 15,
+   "loss": 0.2781,
+   "reward": 1.0,
+   "anchor_nll": 0.0649,
+   "ctr_loss": 0.1062,
+   "alpha": 0.4586
+  },
+  {
+   "iter": 16,
+   "loss": 0.3611,
+   "reward": 0.7208,
+   "anchor_nll": 0.0642,
+   "ctr_loss": 0.0556,
+   "alpha": 0.4414
+  },
+  {
+   "iter": 17,
+   "loss": 0.7746,
+   "reward": 0.9042,
+   "anchor_nll": 0.2983,
+   "ctr_loss": 0.0672,
+   "alpha": 0.4241
+  },
+  {
+   "iter": 18,
+   "loss": 1.0312,
+   "reward": 0.9229,
+   "anchor_nll": 0.0599,
+   "ctr_loss": 0.0069,
+   "alpha": 0.4069
+  },
+  {
+   "iter": 19,
+   "loss": 0.8281,
+   "reward": 0.9542,
+   "anchor_nll": 0.1011,
+   "ctr_loss": 0.0068,
+   "alpha": 0.3897
+  },
+  {
+   "iter": 20,
+   "loss": 0.2774,
+   "reward": 0.8854,
+   "anchor_nll": 0.0692,
+   "ctr_loss": 0.0075,
+   "alpha": 0.3724
+  },
+  {
+   "iter": 21,
+   "loss": 0.6893,
+   "reward": 0.975,
+   "anchor_nll": 0.1061,
+   "ctr_loss": 0.0144,
+   "alpha": 0.3552
+  },
+  {
+   "iter": 22,
+   "loss": 0.3241,
+   "reward": 0.8792,
+   "anchor_nll": 0.0766,
+   "ctr_loss": 0.0,
+   "alpha": 0.3379
+  },
+  {
+   "iter": 23,
+   "loss": 1.1737,
+   "reward": 0.7792,
+   "anchor_nll": 0.0604,
+   "ctr_loss": 0.0351,
+   "alpha": 0.3207
+  },
+  {
+   "iter": 24,
+   "loss": 0.6667,
+   "reward": 0.9417,
+   "anchor_nll": 0.0875,
+   "ctr_loss": 0.008,
+   "alpha": 0.3034
+  },
+  {
+   "iter": 25,
+   "loss": 1.3524,
+   "reward": 0.9292,
+   "anchor_nll": 0.2008,
+   "ctr_loss": 0.0,
+   "alpha": 0.2862
+  },
+  {
+   "iter": 26,
+   "loss": 0.8256,
+   "reward": 0.9604,
+   "anchor_nll": 0.0694,
+   "ctr_loss": 0.0,
+   "alpha": 0.269
+  },
+  {
+   "iter": 27,
+   "loss": 1.294,
+   "reward": 0.9292,
+   "anchor_nll": 0.1355,
+   "ctr_loss": 0.0,
+   "alpha": 0.2517
+  },
+  {
+   "iter": 28,
+   "loss": 1.0884,
+   "reward": 0.8875,
+   "anchor_nll": 0.2141,
+   "ctr_loss": 0.0517,
+   "alpha": 0.2345
+  },
+  {
+   "iter": 29,
+   "loss": 1.0072,
+   "reward": 0.9146,
+   "anchor_nll": 0.0397,
+   "ctr_loss": 0.0,
+   "alpha": 0.2172
+  },
+  {
+   "iter": 30,
+   "loss": 2.2157,
+   "reward": 0.7779,
+   "anchor_nll": 0.1617,
+   "ctr_loss": 0.0,
+   "alpha": 0.2
+  }
+ ]
+}

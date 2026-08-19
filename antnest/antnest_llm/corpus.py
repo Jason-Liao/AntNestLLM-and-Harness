@@ -62,12 +62,30 @@ def load_corpus_v5() -> str:
     readme = _read(WS / "README.md")
     if readme:
         parts.append(f"《README》\n{readme}")
-    art = ant / "artifacts"
+    art = ant / "antnest"
     for pat in ("*_metrics.json", "evolve_log.jsonl", "trajs.jsonl"):
         for f in sorted(art.glob(pat)):
             t = _read(f)
             if t:
                 parts.append(f"《{f.name}》\n{t}")
+    return "\n\n".join(parts)
+
+
+def load_corpus_v6() -> str:
+    """v5 + 运行数据再进一层（M7-5，Agent 3）：评测对比史 + 对话日志。
+
+    v6 在 v5（README/训练指标/进化日志/轨迹）之上，再纳入
+    eval_compare.json（各代模型的评测对比指标——纯数值史）与
+    chat_log.md（人机对话日志），验证"运行数据回灌"的边际收益。
+    纪律不变：evals/evalset.json 仍刻意不入库（评测集永不进训练梯度）。
+    建议搭配 BPE 5000：python -m antnest_llm.train --corpus v6 --bpe_vocab 5000
+    """
+    parts = [load_corpus_v5()]
+    art = WS / "antnest" / "artifacts"
+    for name in ("eval_compare.json", "chat_log.md"):
+        t = _read(art / name)
+        if t:
+            parts.append(f"《{name}》\n{t}")
     return "\n\n".join(parts)
 
 

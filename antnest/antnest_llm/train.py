@@ -19,7 +19,8 @@ from pathlib import Path
 import torch
 
 from .tokenizer import CharTokenizer, load_corpus
-from .corpus import load_corpus_v2, load_corpus_v3, load_corpus_v4, load_corpus_v5
+from .corpus import (load_corpus_v2, load_corpus_v3, load_corpus_v4,
+                     load_corpus_v5, load_corpus_v6)
 from .bpe import BPETokenizer
 from .model import TinyGPT
 from .data import build_dataset, get_batch
@@ -44,7 +45,8 @@ def main():
     ap.add_argument("--n_embd", type=int, default=96)
     ap.add_argument("--n_head", type=int, default=3)
     ap.add_argument("--n_layer", type=int, default=3)
-    ap.add_argument("--corpus", choices=["v1", "v2", "v3", "v4", "v5"], default="v1")
+    ap.add_argument("--corpus", choices=["v1", "v2", "v3", "v4", "v5", "v6"],
+                    default="v1")
     ap.add_argument("--tokenizer", choices=["char", "bpe"], default="char")
     ap.add_argument("--bpe_vocab", type=int, default=2200)
     ap.add_argument("--prefix", default="", help="产物文件名前缀，如 v2")
@@ -57,7 +59,8 @@ def main():
 
     # ── 数据（Agent 3）──
     loader = {"v1": load_corpus, "v2": load_corpus_v2, "v3": load_corpus_v3,
-              "v4": load_corpus_v4, "v5": load_corpus_v5}[args.corpus]
+              "v4": load_corpus_v4, "v5": load_corpus_v5,
+              "v6": load_corpus_v6}[args.corpus]
     corpus = loader()
     if args.tokenizer == "bpe":
         tok = BPETokenizer.train(corpus, args.bpe_vocab)

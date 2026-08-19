@@ -1,0 +1,1 @@
+{"n_embd": 384, "n_head": 6, "n_layer": 12, "block_size": 256, "vocab": 5000}
