@@ -1,0 +1,5 @@
+# Harness 写作任务批次：每行一条，由 grpo9 驱动 Crew 执行
+把"蚁巢宣言：32 个智能体，让模型与外壳相互驱动、共同进化。"写入宣言文件。
+把"antNest LLM 演进史：v1 字符级 → v4 BPE 7.7M → v6 25.2M → grpo9 历代最优综合 0.475。"写入演进史文件。
+把"antNest Harness 六大工具：list_dir、read_file、write_file、shell、grep、find，全部在 DSec 沙箱内执行。"写入工具清单文件。
+把"七个里程碑收官：M1 从零到一，M3 强化学习闭环，M5 工具选择攻坚，M7 对齐税根治与多步穿透。"写入里程碑文件。
